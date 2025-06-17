@@ -7,8 +7,14 @@
   <maintainer email="cmvlara1@gmail.com">borg</maintainer>
   <license>TODO: License declaration</license>
 
+  <!-- Dependências de runtime -->
+  <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>geometry_msgs</depend>
   <depend>robcomp_util</depend>
+  <depend>ament_index_python</depend>
 
+  <!-- Dependências para testes -->
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
   <test_depend>ament_pep257</test_depend>

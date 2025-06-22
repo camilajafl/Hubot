@@ -6,6 +6,9 @@ import face_recognition
 import pygame
 import imutils
 import time
+import os
+import subprocess
+
 
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)
@@ -30,7 +33,6 @@ class Botao:
     def checar_clique(self, mouse_pos, mouse_click):
         return self.rect.collidepoint(mouse_pos) and mouse_click
 
-
     def ativar(self):
         self.ativo = True
         self.cor = BLUE
@@ -42,13 +44,51 @@ class Botao:
 botoes_config = []
 config_buttons_created = False
 
+botoes_avancado = []
+avancado_buttons_created = False
+
+class InputBox:
+    def __init__(self, x, y, w, h, text=''):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.color = pygame.Color('white')
+        self.text = text
+        self.txt_surface = pygame.font.SysFont(None, 36).render(text, True, BLACK)
+        self.active = False
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            # Clica dentro da caixa ativa/desativa
+            if self.rect.collidepoint(event.pos):
+                self.active = not self.active
+            else:
+                self.active = False
+
+        if event.type == pygame.KEYDOWN:
+            if self.active:
+                if event.key == pygame.K_RETURN:
+                    return self.text  # retorna o texto ao pressionar Enter
+                elif event.key == pygame.K_BACKSPACE:
+                    self.text = self.text[:-1]
+                else:
+                    if len(self.text) < 20:  # limite opcional de caracteres
+                        self.text += event.unicode
+                self.txt_surface = pygame.font.SysFont(None, 36).render(self.text, True, BLACK)
+        return None
+
+    def draw(self, screen):
+        # Desenha a caixa de entrada
+        pygame.draw.rect(screen, self.color, self.rect, 2)
+        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 5))
+
+cadastro_buttons_created = False
+
+
 # Inicializa o Pygame
 pygame.init()
 screen = pygame.display.set_mode((1024, 600))
 pygame.display.set_caption("Olhinhos de Raposa")
 font = pygame.font.SysFont(None, 36)
 current_page = "menu"
-
 
 # Carrega imagens da raposa
 image_1r = pygame.image.load("olhos_redimensionados/1r.jpeg")
@@ -91,6 +131,9 @@ while running:
     boxes = face_recognition.face_locations(frame)
     encodings = face_recognition.face_encodings(frame, boxes)
     names = []
+    eventos = pygame.event.get()  # ← colete os eventos UMA VEZ só por frame
+    mouse_click = any(event.type == pygame.MOUSEBUTTONDOWN and event.button == 1 for event in eventos)
+    #eventos_cadastro = pygame.event.get()
 
     face_center_x = None
     if len(boxes) > 0:
@@ -114,35 +157,32 @@ while running:
                 counts[name] = counts.get(name, 0) + 1
             name = max(counts, key=counts.get)
             currentname = name  # ← agora é atualizado corretamente
-            print(currentname)
+            # print(currentname)
         names.append(name)
 
-
     mouse_pos = pygame.mouse.get_pos()
-    mouse_click = False
-    for event in pygame.event.get():
+    for event in eventos:
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-            mouse_click = True  
+     
               
 
     # Desenha caixa no rosto e nome
-    for ((top, right, bottom, left), name) in zip(boxes, names):
-        cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 225), 2)
-        y = top - 15 if top - 15 > 15 else top + 15
-        cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
-                    0.8, (0, 255, 255), 2)
+    # for ((top, right, bottom, left), name) in zip(boxes, names):
+    #     cv2.rectangle(frame, (left, top), (right, bottom), (0, 255, 225), 2)
+    #     y = top - 15 if top - 15 > 15 else top + 15
+    #     cv2.putText(frame, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX,
+    #                 0.8, (0, 255, 255), 2)
 
-    # Atualiza janela OpenCV
-    cv2.imshow("Facial Recognition is Running", frame)
-    key = cv2.waitKey(1) & 0xFF
-    if key == ord("q"):
-        running = False
+    # # Atualiza janela OpenCV
+    # cv2.imshow("Facial Recognition is Running", frame)
+    # key = cv2.waitKey(1) & 0xFF
+    # if key == ord("q"):
+    #     running = False
 
     # Atualiza janela Pygame com base na posição do rosto
     current_time = pygame.time.get_ticks()
-    for event in pygame.event.get():
+    for event in eventos:
         if event.type == pygame.QUIT:
             running = False
 
@@ -192,9 +232,10 @@ while running:
             botao_limpadora = Botao("Limpadora", 100, 400, 200, 60)
             botao_tourista = Botao("Turista", 100, 500, 200, 60)
             botao_voltar = Botao("Voltar", 800, 500, 200, 60)
+            botao_cadastro = Botao("Cadastro", 800, 400, 200, 60)
             botoes_config = [
                 botao_orelha, botao_braco, botao_recepcionista,
-                botao_limpadora, botao_tourista, botao_voltar
+                botao_limpadora, botao_tourista, botao_voltar, botao_cadastro
             ]
             config_buttons_created = True
 
@@ -236,7 +277,106 @@ while running:
                     else:
                         botao_braco.ativar()
 
+                elif botao.texto == "Cadastro":
+                    current_page = "Cadastro"
+                    config_buttons_created = False
+        
+    elif current_page == "Cadastro":
+        txt = font.render("Configurações avançadas", True, BLACK)
+        screen.blit(txt, (350, 50))
 
+        if not avancado_buttons_created:
+            botao_novo = Botao("Novo cadastro", 100, 100, 200, 60)
+            botao_painel = Botao("painel de cadastros", 100, 200, 200, 60)
+            botao_voltar = Botao("Voltar", 800, 500, 200, 60)
+            botoes_avancado = [
+                botao_novo, botao_painel, botao_voltar]
+            avancado_buttons_created = True
+
+        for botao in botoes_avancado:
+            botao.draw(screen)
+
+        for botao in botoes_avancado:
+            if botao.checar_clique(mouse_pos, mouse_click):
+                if botao.texto == "Voltar":
+                    current_page = "pagina_2"
+                    avancado_buttons_created = False
+
+                elif botao.texto == "Novo cadastro":
+                    current_page = "pagina_novo_cadastro"
+                elif botao.texto == "painel de cadastros":
+                    print('oi2')
+
+    elif current_page == "pagina_novo_cadastro":
+        if not cadastro_buttons_created:
+            botao_voltar = Botao("Voltar", 800, 500, 200, 60)
+            input_box = InputBox(100, 100, 300, 40)
+            nome_digitado = ""
+            erro = ""
+            captura_iniciada = False
+            img_counter = 0
+            max_fotos = 5
+            cadastro_buttons_created = True
+
+        txt = font.render("Digite o nome:", True, BLACK)
+        screen.blit(txt, (100, 60))
+
+        for event in eventos:  # Use a lista de eventos unificada
+            if event.type == pygame.QUIT:
+                running = False
+            else:
+                resultado = input_box.handle_event(event)
+                if resultado:
+                    nome_digitado = resultado
+
+        input_box.draw(screen)
+
+        nome_txt = font.render(f"Nome: {input_box.text}", True, BLACK)
+        screen.blit(nome_txt, (100, 150))
+
+        nome = input_box.text.strip()
+
+        if nome != "" and os.path.exists(os.path.join("dataset", nome)):
+            caminho_pasta = os.path.join("dataset", nome)
+            total_fotos = len([f for f in os.listdir(caminho_pasta) if f.endswith(".jpg")])
+            progresso_txt = font.render(f"Fotos salvas: {total_fotos}/5", True, BLACK)
+            screen.blit(progresso_txt, (100, 350))
+        else:
+            if nome != "":
+                aviso_txt = font.render("Nenhuma foto salva ainda.", True, (100, 100, 100))
+                screen.blit(aviso_txt, (100, 350))
+
+        if erro:
+            erro_txt = font.render(erro, True, (200, 0, 0))
+            screen.blit(erro_txt, (100, 200))
+
+        botao_capturar = Botao("Tirar Foto", 100, 250, 200, 50)
+        botao_capturar.draw(screen)
+        botao_voltar.draw(screen)
+
+        if botao_capturar.checar_clique(mouse_pos, mouse_click):
+            if input_box.text.strip() == "":
+                erro = "Digite um nome válido."
+            elif os.path.exists("dataset/" + input_box.text.strip()):
+                erro = "Nome já existe."
+            else:
+                erro = ""
+                os.makedirs("dataset/" + nome_digitado)
+                subprocess.run(["python", "captura_teste2.py", nome_digitado])
+                erro = "Processando..."
+                pygame.display.flip()
+                subprocess.run(["python", "treino2.py"])
+                erro = "Concluído!"
+                pygame.display.flip()
+                pygame.time.wait(5000)
+                current_page = "Cadastro"
+                cadastro_buttons_created = False
+
+        elif botao_voltar.checar_clique(mouse_pos, mouse_click):
+            current_page = "Cadastro"
+            cadastro_buttons_created = False
+
+            
     pygame.display.flip()
     current_image = new_image
 

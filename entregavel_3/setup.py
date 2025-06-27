@@ -29,10 +29,9 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'indeciso = entregavel_3.indeciso:main',
-            'quadrado = entregavel_3.quadrado:main',
             'limpador = entregavel_3.limpador:main',
             'olhos_node = entregavel_3.olhos_node:main',
+            'ai= entregavel_3.ai:main',
         ],
     },
 )

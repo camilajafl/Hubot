@@ -45,6 +45,13 @@ class AIChatNode(Node):
         self.token = None
         self.token_expiry = 0
 
+        #Base HTTP:
+            #RAILWAY:
+        self.base = "https://hubot-api-lara-production.up.railway.app"
+            #LOCALHOST:
+        #self.base = "http://localhost:8000"
+
+
         # Inicializa STT
         if sr:
             self.recognizer = sr.Recognizer()
@@ -91,7 +98,7 @@ class AIChatNode(Node):
         # Solicita novo token e guarda expiração
         secret = os.getenv('SECRET_KEY', '')
         resp = requests.get(
-            'http://localhost:8000/get_access_token/',
+            f"{self.base}/get_access_token",
             headers={'X-token': secret},
             timeout=5.0
         )
@@ -102,7 +109,7 @@ class AIChatNode(Node):
         self.token_expiry = time.time() + expires_in - 5  # um buffer de 5s
         # Recria o client com novo header
         self.ai = RemoteRunnable(
-            'http://localhost:8000/chat/',
+            f"{self.base}/chat",
             headers={'temp-token': self.token}
         )
 
@@ -162,7 +169,7 @@ class AIChatNode(Node):
         # 6) Chama o endpoint /tts/ com o token fresco
         try:
             resp = requests.post(
-                "http://localhost:8000/tts/",
+                f"{self.base}/tts/",
                 json={"text": resposta},
                 headers={"temp-token": token_tts},
                 timeout=10.0

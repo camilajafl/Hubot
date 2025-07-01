@@ -7,6 +7,10 @@ import time
 import requests
 from langserve import RemoteRunnable
 
+from tempfile import NamedTemporaryFile
+   
+import playsound
+
 # Bibliotecas para STT e detecção de idioma
 try:
     import speech_recognition as sr
@@ -118,17 +122,26 @@ class AIChatNode(Node):
         self._call_ai(query)
 
     def _call_ai(self, query: str):
+    
+
+        # 1) Log da pergunta
         self.get_logger().info(f'Pergunta: {query}')
-        # Garante token válido antes da chamada
-        self._get_valid_token()
+
+        # 2) Usa o token atual para chamar o chat
+        token_chat = self._get_valid_token()
         try:
             result = self.ai.invoke({"message": query, "chat_history": []})
         except Exception as e:
             self.get_logger().error(f'Erro ao chamar IA: {e}')
             return
-        resposta = result.get('text', str(result)) if isinstance(result, dict) else str(result)
 
-        # Detecta idioma
+        # 3) Extrai o texto da resposta
+        if isinstance(result, dict):
+            resposta = result.get('text', '')
+        else:
+            resposta = str(result)
+
+        # 4) (Opcional) detectar idioma
         lang_code = None
         if detect:
             try:
@@ -136,20 +149,45 @@ class AIChatNode(Node):
             except:
                 lang_code = None
 
-        # TTS ElevenLabs
-        if self.use_eleven:
-            try:
-                audio = generate(text=resposta, voice=self.eleven_voice, model='eleven_monolingual_v1')
-                play(audio)
-            except Exception as e:
-                self.get_logger().error(f'Erro ElevenLabs TTS: {e}')
-                self._fallback_tts(resposta, lang_code)
-        elif self.use_fallback:
-            self._fallback_tts(resposta, lang_code)
-        else:
+        # 5) Obtém um NOVO token para o TTS
+        #    Isso faz um GET /get_access_token e popula self.token
+        try:
+            self._refresh_token()
+        except Exception as e:
+            self.get_logger().error(f'Erro ao renovar token para TTS: {e}')
             print(f'>> IA sem áudio: {resposta}')
+            return
+        token_tts = self.token
 
+        # 6) Chama o endpoint /tts/ com o token fresco
+        try:
+            resp = requests.post(
+                "http://localhost:8000/tts/",
+                json={"text": resposta},
+                headers={"temp-token": token_tts},
+                timeout=10.0
+            )
+            resp.raise_for_status()
+        except Exception as e:
+            self.get_logger().error(f'Erro ao chamar TTS: {e}')
+            print(f'>> IA sem áudio: {resposta}')
+            return
+
+        # 7) Grava e toca o MP3
+        with NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
+            tmp.write(resp.content)
+            tmp.flush()
+        try:
+            playsound.playsound(tmp.name)
+        except Exception as e:
+            self.get_logger().error(f'Erro ao reproduzir áudio: {e}')
+        finally:
+            os.remove(tmp.name)
+
+        # 8) Também imprime no console
         print(f"\n>> IA: {resposta}\n")
+
+
 
     def _fallback_tts(self, text: str, lang_code: str):
         try:

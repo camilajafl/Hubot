@@ -6,13 +6,106 @@ import pygame
 from rclpy.node import Node
 from std_msgs.msg import String
 
+WHITE = (255, 255, 255)
+BLUE = (50, 130, 230)
+DARK_BLUE = (30, 100, 200)
+BLACK = (0, 0, 0)
+
+class Botao:
+    def __init__(self, texto, x, y, largura, altura, cor=WHITE, ativo=False):
+        self.texto = texto
+        self.rect = pygame.Rect(x, y, largura, altura)
+        self.ativo = ativo
+        self.cor = BLUE if ativo else cor
+
+    def draw(self, surface):
+        pygame.draw.rect(surface, self.cor, self.rect)
+        pygame.draw.rect(surface, BLACK, self.rect, 3)
+        font = pygame.font.SysFont(None, 36)
+        txt_surf = font.render(self.texto, True, BLACK)
+        txt_rect = txt_surf.get_rect(center=self.rect.center)
+        surface.blit(txt_surf, txt_rect)
+
+    def checar_clique(self, mouse_pos, mouse_click):
+        return self.rect.collidepoint(mouse_pos) and mouse_click
+
+    def ativar(self):
+        self.ativo = True
+        self.cor = BLUE
+
+    def desativar(self):
+        self.ativo = False
+        self.cor = WHITE
+
+
+
+class InputBox:
+    def __init__(self, x, y, w, h, text=''):
+        self.rect = pygame.Rect(x, y, w, h)
+        self.color = pygame.Color('white')
+        self.text = text
+        self.txt_surface = pygame.font.SysFont(None, 36).render(text, True, BLACK)
+        self.active = False
+
+    def handle_event(self, event):
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.rect.collidepoint(event.pos):
+                self.active = not self.active
+            else:
+                self.active = False
+        if event.type == pygame.KEYDOWN and self.active:
+            if event.key == pygame.K_RETURN:
+                return self.text
+            elif event.key == pygame.K_BACKSPACE:
+                self.text = self.text[:-1]
+            else:
+                if len(self.text) < 20:
+                    self.text += event.unicode
+            self.txt_surface = pygame.font.SysFont(None, 36).render(self.text, True, BLACK)
+        return None
+
+    def draw(self, screen):
+        pygame.draw.rect(screen, self.color, self.rect)             # Preenche a caixa
+        pygame.draw.rect(screen, BLACK, self.rect, 2)      
+        #pygame.draw.rect(screen, self.color, self.rect, 2)
+        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 5))
+
+
+
 class OlhosNode(Node):
     def __init__(self):
         super().__init__('olhos_node')
 
+        self.username = "Unknown"
+        self.current_page = "menu"
+        self.config_buttons_created = False
+        self.avancado_buttons_created = False
+        self.cadastro_buttons_created = False
+        self.botao_voltar_cadastro = False
+
+
+        pygame.font.init()
+        self.font = pygame.font.SysFont(None, 36)
+
+        #modo de estado
+        self.botao_recepcionista_ativo = True  # default
+        self.botao_limpadora_ativo = False
+        self.botao_tourista_ativo = False
+
         # subscription ao tópico eye_direction
         self.sub = self.create_subscription(
             String, 'eye_direction', self.cb_direction, 10)
+        
+        #reconhecimento de usuário
+        self.sub_user = self.create_subscription(
+            String, 'recognized_user', self.cb_user, 10)
+        self.tracked_names = []
+        self.boxes = []
+
+        #captura
+        #self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
+        #self.pub_treino = self.create_publisher(String, 'treino_nome', 10)
+
 
         # --- Pygame fullscreen ---
         pygame.init()
@@ -40,6 +133,33 @@ class OlhosNode(Node):
         # desenha estado inicial
         self._draw(self.current_direction)
 
+    def draw_button(self, text, rect, mouse_pos, mouse_click):
+        if rect.collidepoint(mouse_pos):
+            color = (30, 100, 200)  # azul escuro quando hover
+            if mouse_click:
+                return True
+        else:
+            color = (50, 130, 230)  # azul normal
+        pygame.draw.rect(self.screen, color, rect)
+        txt_surf = self.font.render(text, True, (255, 255, 255))
+        txt_rect = txt_surf.get_rect(center=rect.center)
+        self.screen.blit(txt_surf, txt_rect)
+        return False
+
+    def cb_status_captura(self, msg: String):
+        self.status_captura = msg.data
+        if msg.data == "Concluído":
+            self.erro = "Cadastro concluído!"
+            nome_msg = String()
+            nome_msg.data = self.nome_digitado
+            self.pub_treino.publish(nome_msg)  # Dispara treinamento via tópico
+            pygame.display.flip()
+            pygame.time.wait(3000)
+            self.current_page = "Cadastro"
+            self.cadastro_buttons_created = False
+            self.etapa_captura = None
+
+
     def cb_direction(self, msg: String):
         # troca de direção interrompe piscar
         if msg.data in ('left','right','forward'):
@@ -51,22 +171,229 @@ class OlhosNode(Node):
     def _draw(self, key):
         self.screen.fill((200,200,200))
         self.screen.blit(self.images[key], (0,0))
-        pygame.display.flip()
+    
+    #administrador
+    def cb_user(self, msg: String):
+        self.username = msg.data
 
     def run(self):
         try:
             while rclpy.ok():
                 # processa callbacks ROS
                 rclpy.spin_once(self, timeout_sec=0.1)
+                eventos = pygame.event.get()
+
+                mouse_click = False
+                mouse_pos = pygame.mouse.get_pos()
+                for event in eventos:
+                    if event.type == pygame.QUIT or (
+                        event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                        return
+                    if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                        mouse_click = True
+
 
                 # processa eventos Pygame (p.ex. ESC sai)
-                for e in pygame.event.get():
+                for e in eventos:
                     if e.type == pygame.QUIT or (
                        e.type==pygame.KEYDOWN and e.key==pygame.K_ESCAPE):
                         return
 
-                # lógica de piscar
                 now = pygame.time.get_ticks()
+
+                #logica de reconhecimento
+                if self.current_page == "menu":
+                    self._draw(self.current_direction)
+                    if self.username != "Unknown":
+                        button_rect = pygame.Rect(800, 500, 200, 60)
+                        if self.draw_button("Configurações", button_rect, mouse_pos, mouse_click):
+                            self.current_page = "pagina_2"
+                            self.config_buttons_created = False
+                
+                #segunda pagina
+                elif self.current_page == "pagina_2":
+                    self.screen.fill(WHITE)
+                    txt = self.font.render("Configurações", True, BLACK)
+                    self.screen.blit(txt, (350, 50))
+                    if not self.config_buttons_created:
+                        self.botao_orelha = Botao("Orelha", 100, 100, 200, 60)
+                        self.botao_braco = Botao("Braço", 100, 200, 200, 60)
+                        self.botao_recepcionista = Botao("Recepcionista", 100, 300, 200, 60, ativo=True)  # começa ativo
+                        self.botao_limpadora = Botao("Limpadora", 100, 400, 200, 60)
+                        self.botao_tourista = Botao("Turista", 100, 500, 200, 60)
+                        self.botao_voltar = Botao("Voltar", 800, 500, 200, 60)
+                        self.botao_cadastro = Botao("Cadastro", 800, 400, 200, 60)
+                        self.botoes_config = [
+                            self.botao_orelha, self.botao_braco, self.botao_recepcionista,
+                            self.botao_limpadora, self.botao_tourista, self.botao_voltar, self.botao_cadastro
+                        ]
+
+                        self.config_buttons_created = True
+                    
+                    for botao in self.botoes_config:
+                        botao.draw(self.screen)
+
+                    for botao in self.botoes_config:
+                        if botao.checar_clique(mouse_pos, mouse_click):
+                            if botao.texto == "Voltar":
+                                self.current_page = "menu"
+                                self.config_buttons_created = False
+
+                            elif botao.texto == "Recepcionista":
+                                self.botao_recepcionista.ativar()
+                                self.botao_limpadora.desativar()
+                                self.botao_tourista.desativar()
+                                self.botao_recepcionista_ativo = True
+                                self.botao_limpadora_ativo = False
+                                self.botao_tourista_ativo = False
+
+
+                            elif botao.texto == "Limpadora":
+                                self.botao_limpadora.ativar()
+                                self.botao_recepcionista.desativar()
+                                self.botao_tourista.desativar()
+                                self.botao_recepcionista_ativo = False
+                                self.botao_limpadora_ativo = True
+                                self.botao_tourista_ativo = False
+  
+
+                            elif botao.texto == "Turista":
+                                self.botao_tourista.ativar()
+                                self.botao_recepcionista.desativar()
+                                self.botao_limpadora.desativar()
+                                # current_page = "pagina_tour"
+                                self.botao_recepcionista_ativo = False
+                                self.botao_limpadora_ativo = False
+                                self.botao_tourista_ativo = True
+
+                            elif botao.texto == "Orelha":
+                                # Apenas alterna o botão, sem interferir nos outros
+                                if self.botao_orelha.ativo:
+                                    self.botao_orelha.desativar()
+                                else:
+                                    self.botao_orelha.ativar()
+
+                            elif botao.texto == "Braço":
+                                if self.botao_braco.ativo:
+                                    self.botao_braco.desativar()
+                                else:
+                                    self.botao_braco.ativar()
+
+                            elif botao.texto == "Cadastro":
+                                self.current_page = "Cadastro"
+                                self.config_buttons_created = False
+                
+                elif self.current_page == "Cadastro":
+                    self.screen.fill(WHITE)
+                    txt = self.font.render("Configurações avançadas", True, BLACK)
+                    self.screen.blit(txt, (350, 50))
+
+                    if not self.avancado_buttons_created:
+                        self.botao_novo = Botao("Novo cadastro", 100, 100, 200, 60)
+                        self.botao_painel = Botao("painel de cadastros", 100, 200, 200, 60)
+                        self.botao_voltar = Botao("Voltar", 800, 500, 200, 60)
+                        self.botoes_avancado = [
+                            self.botao_novo, self.botao_painel, self.botao_voltar]
+                        self.avancado_buttons_created = True
+
+                    for botao in self.botoes_avancado:
+                        botao.draw(self.screen)
+
+                    for botao in self.botoes_avancado:
+                        if botao.checar_clique(mouse_pos, mouse_click):
+                            if botao.texto == "Voltar":
+                                self.current_page = "pagina_2"
+                                self.avancado_buttons_created = False
+                                self.config_buttons_created = False
+                            elif botao.texto == "Novo cadastro":
+                                self.current_page = "pagina_novo_cadastro"
+                                self.avancado_buttons_created = False
+                                self.config_buttons_created = False
+                            elif botao.texto == "painel de cadastros":
+                                print('oi2')
+                
+                elif self.current_page == "pagina_novo_cadastro":
+                    self.screen.fill(WHITE)
+
+                    if not self.cadastro_buttons_created:
+                        self.botao_voltar_cadastro = Botao("Voltar", 800, 500, 200, 60)
+                        self.botao_capturar = Botao("Tirar Foto", 100, 250, 200, 50)
+                        self.input_box = InputBox(100, 100, 300, 40)
+                        self.nome_digitado = ""
+                        self.erro = ""
+                        self.captura_iniciada = False
+                        self.img_counter = 0
+                        self.max_fotos = 5
+                        self.etapa_captura = None
+                        self.processo_em_execucao = None
+                        self.cadastro_buttons_created = True
+
+                    # Título
+                    txt = self.font.render("Digite o nome:", True, BLACK)
+                    self.screen.blit(txt, (100, 60))
+
+                    # Eventos
+                    
+                    for event in eventos:
+                        if event.type == pygame.QUIT or (
+                            event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                            return
+                        else:
+                            resultado = self.input_box.handle_event(event)
+                            if resultado:
+                                self.nome_digitado = resultado
+
+                    # Caixa de entrada
+                    self.input_box.draw(self.screen)
+
+                    # Exibe nome digitado
+                    nome = self.input_box.text.strip()
+                    nome_txt = self.font.render(f"Nome: {nome}", True, BLACK)
+                    self.screen.blit(nome_txt, (100, 150))
+
+                    self.botao_capturar.draw(self.screen)
+                    self.botao_voltar_cadastro.draw(self.screen)
+                    '''
+                    # Progresso das fotos
+                    if nome:
+                        caminho_pasta = os.path.join("dataset", nome)
+                        if os.path.exists(caminho_pasta):
+                            total_fotos = len([f for f in os.listdir(caminho_pasta) if f.endswith(".jpg")])
+                            progresso_txt = self.font.render(f"Fotos salvas: {total_fotos}/5", True, BLACK)
+                            self.screen.blit(progresso_txt, (100, 350))
+                        else:
+                            aviso_txt = self.font.render("Nenhuma foto salva ainda.", True, (100, 100, 100))
+                            self.screen.blit(aviso_txt, (100, 350))
+
+                    # Mensagem de erro
+                    if self.erro:
+                        erro_txt = self.font.render(self.erro, True, (200, 0, 0))
+                        self.screen.blit(erro_txt, (100, 200))
+
+                    # Desenha botões
+
+
+                    # Clique "Tirar Foto"
+                    if self.botao_capturar.checar_clique(mouse_pos, mouse_click):
+                        if nome == "":
+                            self.erro = "Digite um nome válido."
+                        elif os.path.exists(os.path.join("dataset", nome)):
+                            self.erro = "Nome já existe."
+                        else:
+                            self.erro = ""
+                            os.makedirs(os.path.join("dataset", nome))
+                            self.etapa_captura = "capturando"
+                            msg = String()
+                            msg.data = nome
+                            self.pub_captura.publish(msg)
+                            self.etapa_captura = "capturando"'''
+
+
+                    # Clique "Voltar"
+                    if self.botao_voltar_cadastro.checar_clique(mouse_pos, mouse_click):
+                        self.current_page = "Cadastro"
+                        self.cadastro_buttons_created = False
+                
                 if not self.blinking:
                     if now - self.last_blink_time >= self.blink_interval:
                         self.blinking         = True
@@ -76,7 +403,10 @@ class OlhosNode(Node):
                     if now - self.blink_start_time >= self.blink_duration:
                         self.blinking         = False
                         self.last_blink_time  = now
-                        self._draw(self.current_direction)
+                        self._draw(self.current_direction)                
+
+                
+                pygame.display.flip()
 
         finally:
             pygame.quit()

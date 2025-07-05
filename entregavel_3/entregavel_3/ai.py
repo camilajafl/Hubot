@@ -29,7 +29,7 @@ class AIChatNode(Node):
         # RAILWAY:
         self.base = "https://hubot-api-lara-production.up.railway.app"
         # LOCALHOST:
-        # self.base = "http://localhost:8000"
+        #self.base = "http://localhost:8000"
 
         # Inicializa STT
         if sr:
@@ -87,16 +87,45 @@ class AIChatNode(Node):
             self.get_logger().info('Ouvindo… fale algo')
             audio = self.recognizer.listen(mic, phrase_time_limit=5)
         try:
-            stt_lang = os.getenv('STT_LANGUAGE', 'pt-BR')
-            query = self.recognizer.recognize_google(audio, language=stt_lang)
+            # Converte áudio para WAV bytes
+            wav_data = audio.get_wav_data()
+            # Define idioma opcional para Whisper
+            stt_lang = os.getenv('STT_LANGUAGE', None)
+            # Obtém token temporário para STT
+            token_stt = self._get_valid_token()
+
+            # Prepara arquivo para Whisper: bytes em BytesIO com atributo name
+            import io
+            audio_file = io.BytesIO(wav_data)
+            audio_file.name = 'audio.wav'
+
+            # Monta payload multipart usando campo 'payload' para corresponder ao endpoint
+            files = {'payload': (audio_file.name, audio_file, 'audio/wav')}
+            # Não enviamos 'language' extra, pois endpoint não aceita
+
+            # Chama o endpoint /stt/ da sua API
+            resp = requests.post(
+                f"{self.base}/stt/",
+                headers={'temp-token': token_stt},
+                files=files,
+                timeout=10.0
+            )
+            resp.raise_for_status()
+            query = resp.json().get('text', '')
         except Exception as e:
             self.get_logger().warn(f'STT falhou: {e}')
             return
+
+        # Renova token para chat (cada token é de uso único)
+        self._refresh_token()
+
+        # Continua o fluxo normal
         self._call_ai(query)
 
     def _call_ai(self, query: str):
         self.get_logger().info(f'Pergunta: {query}')
-        token_chat = self._get_valid_token()
+        # Usa token recém obtido em _refresh_token()
+        token_chat = self.token
         try:
             result = self.ai.invoke({"message": query, "chat_history": []})
         except Exception as e:
@@ -159,6 +188,7 @@ class AIChatNode(Node):
             if not query.strip():
                 continue
             self._call_ai(query)
+
 
 def main(args=None):
     parser = argparse.ArgumentParser()

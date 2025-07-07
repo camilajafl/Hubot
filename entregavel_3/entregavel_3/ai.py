@@ -121,6 +121,7 @@ class AIChatNode(Node):
 
         # Continua o fluxo normal
         self._call_ai(query)
+    
 
     def _call_ai(self, query: str):
         self.get_logger().info(f'Pergunta: {query}')
@@ -145,14 +146,9 @@ class AIChatNode(Node):
                 lang_code = None
 
         # Renova token para TTS via OpenAI
-        try:
-            self._refresh_token()
-        except Exception as e:
-            self.get_logger().error(f'Erro ao renovar token para TTS: {e}')
-            print(f'>> IA sem áudio: {resposta}')
-            return
+        self._refresh_token()
         token_tts = self.token
-
+        
         # Chama o endpoint /tts/ (OpenAI) e toca
         try:
             resp = requests.post(

@@ -88,8 +88,10 @@ class AIChatNode(Node):
         try:
             # Converte áudio para WAV bytes
             wav_data = audio.get_wav_data()
-            # Obtém token temporário para STT
-            token_stt = self._get_valid_token()
+
+            # 1) Garante token fresco para STT (não reutilizar o já consumido)
+            self._refresh_token()
+            token_stt = self.token
 
             # Prepara arquivo para Whisper: bytes em BytesIO com atributo name
             import io
@@ -99,7 +101,7 @@ class AIChatNode(Node):
             # Monta payload multipart usando campo 'payload' para corresponder ao endpoint
             files = {'payload': (audio_file.name, audio_file, 'audio/wav')}
 
-            # Chama o endpoint /stt/ da sua API
+            # 2) Chama o endpoint /stt/ com token recém obtido
             resp = requests.post(
                 f"{self.base}/stt/",
                 headers={'temp-token': token_stt},

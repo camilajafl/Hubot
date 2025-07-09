@@ -39,6 +39,8 @@ class AIChatNode(Node):
         else:
             self.recognizer = None
 
+        self.chat_history: list[str] = []
+
         # Listar microfones disponíveis
         if sr:
             try:
@@ -74,10 +76,7 @@ class AIChatNode(Node):
         self.token = data.get('access_token', '')
         expires_in = data.get('expires_in', 300)
         self.token_expiry = time.time() + expires_in - 5
-        self.ai = RemoteRunnable(
-            f"{self.base}/chat",
-            headers={'temp-token': self.token}
-        )
+        
 
     def listen_and_respond(self):
         mic_index = int(os.getenv('MIC_DEVICE_INDEX', '-1'))
@@ -89,8 +88,6 @@ class AIChatNode(Node):
         try:
             # Converte áudio para WAV bytes
             wav_data = audio.get_wav_data()
-            # Define idioma opcional para Whisper
-            stt_lang = os.getenv('STT_LANGUAGE', None)
             # Obtém token temporário para STT
             token_stt = self._get_valid_token()
 
@@ -101,7 +98,6 @@ class AIChatNode(Node):
 
             # Monta payload multipart usando campo 'payload' para corresponder ao endpoint
             files = {'payload': (audio_file.name, audio_file, 'audio/wav')}
-            # Não enviamos 'language' extra, pois endpoint não aceita
 
             # Chama o endpoint /stt/ da sua API
             resp = requests.post(
@@ -124,11 +120,22 @@ class AIChatNode(Node):
     
 
     def _call_ai(self, query: str):
-        self.get_logger().info(f'Pergunta: {query}')
-        # Usa token recém obtido em _refresh_token()
+        # 2) busca token e (re)cria o client
+        self._refresh_token()
         token_chat = self.token
+        self.ai = RemoteRunnable(f"{self.base}/chat", headers={'temp-token': token_chat})
+        self.get_logger().info(f'Pergunta: {query} (token {token_chat})')
+
+        # 3) envia o histórico acumulado
+        # 1) monta o prompt com o histórico + pergunta atual
+        #    cada elemento de self.chat_history já é "Você: ..." ou "IA: ..."
+        history_text = "\n".join(self.chat_history)
+        prompt = f"{history_text}\nVocê: {query}\nIA:" if history_text else f"Você: {query}\nIA:"
+
+         # 2) manda só message com todo o contexto
+        payload = {"message": prompt, "chat_history": []}
         try:
-            result = self.ai.invoke({"message": query, "chat_history": []})
+            result = self.ai.invoke(payload)
         except Exception as e:
             self.get_logger().error(f'Erro ao chamar IA: {e}')
             return
@@ -138,12 +145,8 @@ class AIChatNode(Node):
         else:
             resposta = str(result)
 
-        lang_code = None
-        if detect:
-            try:
-                lang_code = detect(resposta)
-            except:
-                lang_code = None
+        self.chat_history.append(f"Você: {query}")
+        self.chat_history.append(f"IA: {resposta}") 
 
         # Renova token para TTS via OpenAI
         self._refresh_token()

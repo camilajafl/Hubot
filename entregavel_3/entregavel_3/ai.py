@@ -8,6 +8,7 @@ import requests
 from langserve import RemoteRunnable
 from tempfile import NamedTemporaryFile
 import playsound
+import json 
 
 try:
     import speech_recognition as sr
@@ -24,6 +25,8 @@ class AIChatNode(Node):
         # Token e expiração
         self.token = None
         self.token_expiry = 0
+
+        self.session  = requests.Session()
 
         # Base HTTP:
         # RAILWAY:
@@ -65,10 +68,9 @@ class AIChatNode(Node):
         return self.token
 
     def _refresh_token(self):
-        secret = os.getenv('SECRET_KEY', '')
-        resp = requests.get(
+        resp = self.session.get(
             f"{self.base}/get_access_token",
-            headers={'X-token': secret},
+            headers={'X-token': os.getenv('SECRET_KEY','')},
             timeout=5.0
         )
         resp.raise_for_status()
@@ -102,7 +104,7 @@ class AIChatNode(Node):
             files = {'payload': (audio_file.name, audio_file, 'audio/wav')}
 
             # 2) Chama o endpoint /stt/ com token recém obtido
-            resp = requests.post(
+            resp = self.session.post(
                 f"{self.base}/stt/",
                 headers={'temp-token': token_stt},
                 files=files,
@@ -114,71 +116,50 @@ class AIChatNode(Node):
             self.get_logger().warn(f'STT falhou: {e}')
             return
 
-        # Renova token para chat (cada token é de uso único)
-        self._refresh_token()
-
         # Continua o fluxo normal
         self._call_ai(query)
     
-
     def _call_ai(self, query: str):
-        # 2) busca token e (re)cria o client
+        # 1) pega token só para o chat
         self._refresh_token()
         token_chat = self.token
-        self.ai = RemoteRunnable(f"{self.base}/chat", headers={'temp-token': token_chat})
-        self.get_logger().info(f'Pergunta: {query} (token {token_chat})')
 
-        # 3) envia o histórico acumulado
-        # 1) monta o prompt com o histórico + pergunta atual
-        #    cada elemento de self.chat_history já é "Você: ..." ou "IA: ..."
-        history_text = "\n".join(self.chat_history)
-        prompt = f"{history_text}\nVocê: {query}\nIA:" if history_text else f"Você: {query}\nIA:"
+        # 2) cria o RemoteRunnable e dispara o stream
+        hubot = RemoteRunnable(f"{self.base}/chat", headers={'temp-token': token_chat})
 
-         # 2) manda só message com todo o contexto
-        payload = {"message": prompt, "chat_history": []}
-        try:
-            result = self.ai.invoke(payload)
-        except Exception as e:
-            self.get_logger().error(f'Erro ao chamar IA: {e}')
-            return
+        collected = ""
+        print("\n>> IA: ", end="", flush=True)
+        for chunk in hubot.stream({
+            "message": query,
+            "chat_history": self.chat_history
+        }):
+            # chunk pode ser str ou dict{'delta': 'texto'}
+            delta = chunk['delta'] if isinstance(chunk, dict) else str(chunk)
+            collected += delta
+            print(delta, end="", flush=True)
+        print()  # só pra pular linha no final
 
-        if isinstance(result, dict):
-            resposta = result.get('text', '')
-        else:
-            resposta = str(result)
-
+        # 3) atualiza o histórico
         self.chat_history.append(f"Você: {query}")
-        self.chat_history.append(f"IA: {resposta}") 
+        self.chat_history.append(f"IA: {collected}")
 
-        # Renova token para TTS via OpenAI
+        # 4) token para TTS e toca a resposta inteira
         self._refresh_token()
         token_tts = self.token
-        
-        # Chama o endpoint /tts/ (OpenAI) e toca
-        try:
-            resp = requests.post(
-                f"{self.base}/tts/",
-                json={"text": resposta},
-                headers={"temp-token": token_tts},
-                timeout=10.0
-            )
-            resp.raise_for_status()
-        except Exception as e:
-            self.get_logger().error(f'Erro ao chamar TTS: {e}')
-            print(f'>> IA sem áudio: {resposta}')
-            return
+        resp = self.session.post(
+            f"{self.base}/tts/",
+            json={"text": collected},
+            headers={"temp-token": token_tts},
+            timeout=20.0
+        )
+        resp.raise_for_status()
 
         with NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
             tmp.write(resp.content)
             tmp.flush()
-        try:
-            playsound.playsound(tmp.name)
-        except Exception as e:
-            self.get_logger().error(f'Erro ao reproduzir áudio: {e}')
-        finally:
-            os.remove(tmp.name)
+        playsound.playsound(tmp.name)
+        os.remove(tmp.name)
 
-        print(f"\n>> IA: {resposta}\n")
 
     def run_test_loop(self):
         self.get_logger().info("Modo TESTE: digite sua pergunta ou 'sair'")
@@ -192,6 +173,7 @@ class AIChatNode(Node):
 
 
 def main(args=None):
+    print("mudou")
     parser = argparse.ArgumentParser()
     parser.add_argument('--test', action='store_true', help='Modo on-PC via teclado')
     parsed = parser.parse_args()

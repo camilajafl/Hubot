@@ -33,6 +33,8 @@ class AIChatNode(Node):
 
         self.session  = requests.Session()
 
+        self.is_speaking = False
+
         # Base HTTP:
         # RAILWAY:
         #self.base = "https://hubot-api-lara-production.up.railway.app"
@@ -86,6 +88,9 @@ class AIChatNode(Node):
         
 
     def listen_and_respond(self):
+        if self.is_speaking: #ignora microfone 
+            return
+        
         mic_index = int(os.getenv('MIC_DEVICE_INDEX', '-1'))
         mic_args = {'device_index': mic_index} if mic_index >= 0 else {}
         with sr.Microphone(**mic_args) as mic:
@@ -101,7 +106,6 @@ class AIChatNode(Node):
             token_stt = self.token
 
             # Prepara arquivo para Whisper: bytes em BytesIO com atributo name
-            import io
             audio_file = io.BytesIO(wav_data)
             audio_file.name = 'audio.wav'
 
@@ -117,6 +121,8 @@ class AIChatNode(Node):
             )
             resp.raise_for_status()
             query = resp.json().get('text', '')
+            self.get_logger().info(f"Você disse: {query}")
+
         except Exception as e:
             self.get_logger().warn(f'STT falhou: {e}')
             return
@@ -126,6 +132,8 @@ class AIChatNode(Node):
     
     def tocar_audio_em_thread(self, wav_bytes):
         try:
+            self.is_speaking = True
+
             start_decode = time.time()
             with io.BytesIO(wav_bytes) as audio_stream:
                 with wave.open(audio_stream, 'rb') as wave_read:
@@ -146,8 +154,8 @@ class AIChatNode(Node):
 
             total = end_play - start_decode
             print(f"[TTS-thread] Tempo TOTAL na thread: {total:.2f} segundos")
-        except Exception as e:
-            print(f"[TTS-thread] Erro: {e}")
+        finally:
+            self.is_speaking = False
 
 
     

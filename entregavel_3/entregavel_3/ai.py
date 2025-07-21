@@ -120,11 +120,10 @@ class AIChatNode(Node):
         self._call_ai(query)
     
     def _call_ai(self, query: str):
-        # 1) pega token só para o chat
+        # Token apenas para o chat
         self._refresh_token()
         token_chat = self.token
 
-        # 2) cria o RemoteRunnable e dispara o stream
         hubot = RemoteRunnable(f"{self.base}/chat", headers={'temp-token': token_chat})
 
         collected = ""
@@ -133,19 +132,19 @@ class AIChatNode(Node):
             "message": query,
             "chat_history": self.chat_history
         }):
-            # chunk pode ser str ou dict{'delta': 'texto'}
             delta = chunk['delta'] if isinstance(chunk, dict) else str(chunk)
             collected += delta
             print(delta, end="", flush=True)
-        print()  # só pra pular linha no final
+        print()
 
-        # 3) atualiza o histórico
-        self.chat_history.append(f"Você: {query}")
-        self.chat_history.append(f"IA: {collected}")
+        self.chat_history.append({"author": "user", "content": query})
+        self.chat_history.append({"author": "ai", "content": collected})
 
-        # 4) token para TTS e toca a resposta inteira
+
+        # Token novo para o TTS
         self._refresh_token()
         token_tts = self.token
+
         resp = self.session.post(
             f"{self.base}/tts/",
             json={"text": collected},
@@ -161,6 +160,7 @@ class AIChatNode(Node):
         os.remove(tmp.name)
 
 
+
     def run_test_loop(self):
         self.get_logger().info("Modo TESTE: digite sua pergunta ou 'sair'")
         while True:
@@ -173,7 +173,7 @@ class AIChatNode(Node):
 
 
 def main(args=None):
-    print("mudou")
+    print("mudou?")
     parser = argparse.ArgumentParser()
     parser.add_argument('--test', action='store_true', help='Modo on-PC via teclado')
     parsed = parser.parse_args()

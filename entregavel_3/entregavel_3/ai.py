@@ -8,7 +8,12 @@ import requests
 from langserve import RemoteRunnable
 from tempfile import NamedTemporaryFile
 import playsound
-import json 
+import json
+
+import threading
+import io
+import wave
+import simpleaudio as sa
 
 try:
     import speech_recognition as sr
@@ -30,9 +35,9 @@ class AIChatNode(Node):
 
         # Base HTTP:
         # RAILWAY:
-        self.base = "https://hubot-api-lara-production.up.railway.app"
+        #self.base = "https://hubot-api-lara-production.up.railway.app"
         # LOCALHOST:
-        #self.base = "http://localhost:8000"
+        self.base = "http://localhost:8000"
 
         # Inicializa STT
         if sr:
@@ -119,46 +124,88 @@ class AIChatNode(Node):
         # Continua o fluxo normal
         self._call_ai(query)
     
+    def tocar_audio_em_thread(self, wav_bytes):
+        try:
+            start_decode = time.time()
+            with io.BytesIO(wav_bytes) as audio_stream:
+                with wave.open(audio_stream, 'rb') as wave_read:
+                    wave_obj = sa.WaveObject(
+                        wave_read.readframes(wave_read.getnframes()),
+                        wave_read.getnchannels(),
+                        wave_read.getsampwidth(),
+                        wave_read.getframerate()
+                    )
+            end_decode = time.time()
+            print(f"[TTS-thread] Decodificação WAV: {end_decode - start_decode:.2f} segundos")
+
+            start_play = time.time()
+            play_obj = wave_obj.play()
+            play_obj.wait_done()
+            end_play = time.time()
+            print(f"[TTS-thread] Reprodução do áudio: {end_play - start_play:.2f} segundos")
+
+            total = end_play - start_decode
+            print(f"[TTS-thread] Tempo TOTAL na thread: {total:.2f} segundos")
+        except Exception as e:
+            print(f"[TTS-thread] Erro: {e}")
+
+
+    
     def _call_ai(self, query: str):
-        # Token apenas para o chat
+        # Token novo só para o chat
         self._refresh_token()
         token_chat = self.token
 
+        # Instancia RemoteRunnable
         hubot = RemoteRunnable(f"{self.base}/chat", headers={'temp-token': token_chat})
 
         collected = ""
         print("\n>> IA: ", end="", flush=True)
-        for chunk in hubot.stream({
-            "message": query,
-            "chat_history": self.chat_history
-        }):
-            delta = chunk['delta'] if isinstance(chunk, dict) else str(chunk)
-            collected += delta
-            print(delta, end="", flush=True)
+        try:
+            for chunk in hubot.stream({
+                "message": query,
+                "chat_history": self.chat_history
+            }):
+                delta = chunk['delta'] if isinstance(chunk, dict) else str(chunk)
+                collected += delta
+                print(delta, end="", flush=True)
+        except Exception as e:
+            self.get_logger().error(f"Erro no stream do chat: {e}")
+            return
         print()
 
+        # Atualiza o histórico no formato correto
         self.chat_history.append({"author": "user", "content": query})
         self.chat_history.append({"author": "ai", "content": collected})
 
+        # TTS ---------------------------------------------------------------------
+        # TTS ---------------------------------------------------------------------
+        start_tts_total = time.time()
 
-        # Token novo para o TTS
+        # Token novo só para o TTS
         self._refresh_token()
         token_tts = self.token
 
+        start_req = time.time()
         resp = self.session.post(
             f"{self.base}/tts/",
             json={"text": collected},
             headers={"temp-token": token_tts},
-            timeout=20.0
+            timeout=30.0
         )
         resp.raise_for_status()
+        end_req = time.time()
+        print(f"[TTS] Requisição à API: {end_req - start_req:.2f} segundos")
 
-        with NamedTemporaryFile(delete=False, suffix=".mp3") as tmp:
-            tmp.write(resp.content)
-            tmp.flush()
-        playsound.playsound(tmp.name)
-        os.remove(tmp.name)
+        # Toca o áudio em uma thread separada
+        threading.Thread(target=self.tocar_audio_em_thread, args=(resp.content,)).start()
 
+        # Marca tempo total até delegar para thread
+        end_tts_total = time.time()
+        print(f"[TTS] Tempo TOTAL (até início da reprodução): {end_tts_total - start_tts_total:.2f} segundos")
+
+
+        print("", flush=True)
 
 
     def run_test_loop(self):

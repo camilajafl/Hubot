@@ -19,6 +19,8 @@ setup(
             os.path.join('share', package_name, 'olhos_redimensionados'),
             glob(os.path.join(package_name, 'olhos_redimensionados', '*'))
         ),
+        ('share/' + package_name, [os.path.join(package_name, 'encodings.pickle')]),
+
     ],
     install_requires=['setuptools'],
     zip_safe=True,
@@ -32,6 +34,7 @@ setup(
             'limpador = entregavel_3.limpador:main',
             'olhos_node = entregavel_3.olhos_node:main',
             'ai= entregavel_3.ai:main',
+            'facial = entregavel_3.FacialNode:main',
         ],
     },
 )

@@ -20,7 +20,7 @@ class FacialNode(Node):
         self.user_pub = self.create_publisher(String, 'recognized_user', 10)
         self.primeiro_pub = self.create_publisher(String, 'primeiro_user', 10)
         self.face_location_pub = self.create_publisher(String, 'primeiro_face_location', 10) 
-        local = ''
+        local2 = ''
 
         self.running = True
         self.bridge = CvBridge()
@@ -47,7 +47,7 @@ class FacialNode(Node):
         )
 
     def image_callback(self, msg):
-        local = "indefinido" 
+        local2 = "indefinido" 
         if not self.running:
             return
 
@@ -115,25 +115,26 @@ class FacialNode(Node):
                     (top, right, bottom, left) = boxes[idx]
                     face_center_x = (left + right) // 2  # Centro horizontal do rosto
                     face_location_str = f"{top},{right},{bottom},{left}"
-                    self.face_location_pub.publish(String(data=face_location_str))
+                    # self.face_location_pub.publish(String(data=face_location_str))
 
                     # Verificar posição em relação ao centro da imagem
                     if face_center_x < frame_center_x - 200:  # Margem para "esquerda"
-                        local = "esquerda"
+                        local2 = "esquerda"
                         print("esquerda")
                     elif face_center_x > frame_center_x + 200:  # Margem para "direita"
-                        local = "direita"
+                        local2 = "direita"
                         print("direita")
                     else:
-                        local = "centralizado"
+                        local2 = "centralizado"
                         print("centralizado")
                     break
         else:
             first_name = "Unknown"
-            self.face_location_pub.publish(String(data="-1,-1,-1,-1"))
+            # self.face_location_pub.publish(String(data="-1,-1,-1,-1"))
+            self.face_location_pub.publish(String(data="centralizado"))
 
         self.primeiro_pub.publish(String(data=first_name))
-        self.face_location_pub.publish(String(data=local))
+        self.face_location_pub.publish(String(data=local2))
 
         # Desenhar boxes na imagem
         for ((top, right, bottom, left), name) in zip(boxes, names):
@@ -151,6 +152,7 @@ class FacialNode(Node):
 
 
 def main(args=None):
+    print("Teste")
     rclpy.init(args=args)
     node = FacialNode()
     try:

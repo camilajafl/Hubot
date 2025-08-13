@@ -6,6 +6,7 @@ import pygame
 from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
+from rclpy.qos import ReliabilityPolicy, QoSProfile
 
 
 WHITE = (255, 255, 255)
@@ -94,7 +95,7 @@ class OlhosNode(Node):
         self.botao_limpadora_ativo = False
         self.botao_tourista_ativo = False
 
-        # subscription ao tópico eye_direction
+        # SUBSCRIBERS
         self.sub = self.create_subscription(
             String, 'eye_direction', self.cb_direction, 10)
         
@@ -104,8 +105,8 @@ class OlhosNode(Node):
         self.tracked_names = []
         self.boxes = []
 
-        self.face_center_pub = self.create_publisher(String, 'face_center_x', 10)
-
+        self.sub_face_center = self.create_subscription(
+            String, 'primeiro_face_location', self.cb_face_center, QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT))
 
         #limpadora
         #self.sub_limpadora = self.create_subscription(String,'limpador',self.cb_limpadora,10)
@@ -117,17 +118,12 @@ class OlhosNode(Node):
 
 
         #acompanhamento do usuário
-        self.username = "Unknown"
-        self.face_center_x = None
+
         self.current_image = "5r"
         self.image_changed_time = None
         self.start_time = pygame.time.get_ticks()
 
-        self.sub_user = self.create_subscription(
-            String, 'recognized_user', self.cb_user, 10)
-
-        self.sub_face_center = self.create_subscription(
-            String, 'primeiro_face_center_x', self.cb_face_center, 10)
+        
 
         # --- Pygame fullscreen ---
         pygame.init()

@@ -5,6 +5,8 @@ import rclpy
 import pygame
 from rclpy.node import Node
 from std_msgs.msg import String
+from geometry_msgs.msg import Twist
+
 
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)
@@ -102,10 +104,30 @@ class OlhosNode(Node):
         self.tracked_names = []
         self.boxes = []
 
+        self.face_center_pub = self.create_publisher(String, 'face_center_x', 10)
+
+
+        #limpadora
+        #self.sub_limpadora = self.create_subscription(String,'limpador',self.cb_limpadora,10)
+        #self.limpador_ativo = False
+
         #captura
         #self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
         #self.pub_treino = self.create_publisher(String, 'treino_nome', 10)
 
+
+        #acompanhamento do usuário
+        self.username = "Unknown"
+        self.face_center_x = None
+        self.current_image = "5r"
+        self.image_changed_time = None
+        self.start_time = pygame.time.get_ticks()
+
+        self.sub_user = self.create_subscription(
+            String, 'recognized_user', self.cb_user, 10)
+
+        self.sub_face_center = self.create_subscription(
+            String, 'primeiro_face_center_x', self.cb_face_center, 10)
 
         # --- Pygame fullscreen ---
         pygame.init()
@@ -121,6 +143,7 @@ class OlhosNode(Node):
             'forward': pygame.image.load(os.path.join(folder, '5r.jpeg')),
             'blink':   pygame.image.load(os.path.join(folder, '4r.jpeg')),
         }
+        self.current_image = 'forward' 
 
         # estado inicial e timers de piscar
         self.current_direction = 'forward'
@@ -176,6 +199,69 @@ class OlhosNode(Node):
     def cb_user(self, msg: String):
         self.username = msg.data
 
+    # limpador
+    def cb_limpadora(self, msg: String):
+        self.get_logger().info(f"Limpadora recebeu: {msg.data}")
+
+    def parar_robo(self):
+        msg = Twist()
+        msg.linear.x = 0.0
+        msg.angular.z = 0.0
+        self.cmd_vel_pub.publish(msg)
+        self.get_logger().info('Robô parado - modo recepcionista ativo')
+
+    def cb_face_center(self, msg: String):
+        # Atualiza a imagem APENAS quando Limpadora for False
+        if self.botao_limpadora_ativo:
+            return  # Sai sem atualizar se Limpadora estiver ativa
+
+        direction_map = {
+            "esquerda": "left",
+            "direita": "right",
+            "centralizado": "forward"
+        }
+
+        ros_direction = msg.data
+        new_direction = direction_map.get(ros_direction, "forward")
+
+        if new_direction != self.current_direction:
+            self.current_direction = new_direction
+            self.current_image = new_direction  # <-- Mantém sincronizado
+            self.blinking = False
+            self.last_blink_time = pygame.time.get_ticks()
+            self._draw(self.current_direction)
+            pygame.display.flip()  # <-- Atualiza tela imediatamente
+
+
+    def update_image(self):
+        current_time = pygame.time.get_ticks()
+        new_image = self.current_image
+
+        if new_image == "forward":
+            # piscar a cada 5 segundos
+            if self.image_changed_time is None:
+                self.start_time = current_time
+                self.image_changed_time = 0
+
+            if current_time - self.start_time >= 5000 and self.current_image != "blink":
+                new_image = "blink"
+                self.image_changed_time = current_time
+
+            elif self.current_image == "blink" and current_time - self.image_changed_time >= 1000:
+                new_image = "forward"
+                self.image_changed_time = None
+                self.start_time = current_time
+        else:
+            # se estiver left ou right, mantém a imagem (não pisca)
+            pass
+
+        if new_image != self.current_image:
+            self.current_image = new_image
+            self.screen.blit(self.images[new_image], (0, 0))
+            pygame.display.flip()
+
+
+
     def run(self):
         try:
             while rclpy.ok():
@@ -192,7 +278,7 @@ class OlhosNode(Node):
                     if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
                         mouse_click = True
 
-
+                self.update_image()
                 # processa eventos Pygame (p.ex. ESC sai)
                 for e in eventos:
                     if e.type == pygame.QUIT or (
@@ -200,6 +286,12 @@ class OlhosNode(Node):
                         return
 
                 now = pygame.time.get_ticks()
+
+                # if self.limpador_ativo:
+                #     rclpy.spin_once(self.limpador_node, timeout_sec=0)
+                # else:
+                #     # Se limpador desligado, para o robô
+                #     self.parar_robo()
 
                 #logica de reconhecimento
                 if self.current_page == "menu":
@@ -212,7 +304,7 @@ class OlhosNode(Node):
                 
                 #segunda pagina
                 elif self.current_page == "pagina_2":
-                    self.screen.fill(WHITE)
+                    #self.screen.fill(WHITE)
                     txt = self.font.render("Configurações", True, BLACK)
                     self.screen.blit(txt, (350, 50))
                     if not self.config_buttons_created:
@@ -255,6 +347,7 @@ class OlhosNode(Node):
                                 self.botao_recepcionista_ativo = False
                                 self.botao_limpadora_ativo = True
                                 self.botao_tourista_ativo = False
+                                # self.limpador_ativo = True 
   
 
                             elif botao.texto == "Turista":
@@ -284,7 +377,7 @@ class OlhosNode(Node):
                                 self.config_buttons_created = False
                 
                 elif self.current_page == "Cadastro":
-                    self.screen.fill(WHITE)
+                    #self.screen.fill(WHITE)
                     txt = self.font.render("Configurações avançadas", True, BLACK)
                     self.screen.blit(txt, (350, 50))
 

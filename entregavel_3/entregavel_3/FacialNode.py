@@ -119,11 +119,11 @@ class FacialNode(Node):
 
                     # Verificar posição em relação ao centro da imagem
                     if face_center_x < frame_center_x - 200:  # Margem para "esquerda"
-                        local2 = "esquerda"
-                        print("esquerda")
-                    elif face_center_x > frame_center_x + 200:  # Margem para "direita"
                         local2 = "direita"
                         print("direita")
+                    elif face_center_x > frame_center_x + 200:  # Margem para "direita"
+                        local2 = "esquerda"
+                        print("esquerda")
                     else:
                         local2 = "centralizado"
                         print("centralizado")

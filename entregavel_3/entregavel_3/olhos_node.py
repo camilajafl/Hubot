@@ -221,42 +221,17 @@ class OlhosNode(Node):
         new_direction = direction_map.get(ros_direction, "forward")
 
         if new_direction != self.current_direction:
+            # Fonte única de verdade: apenas estado + timers
             self.current_direction = new_direction
-            self.current_image = new_direction  # <-- Mantém sincronizado
+            self.current_image = new_direction  # mantém compatibilidade com quem ainda lê current_image
             self.blinking = False
             self.last_blink_time = pygame.time.get_ticks()
-            self._draw(self.current_direction)
-            pygame.display.flip()  # <-- Atualiza tela imediatamente
+
 
 
     def update_image(self):
-        current_time = pygame.time.get_ticks()
-        new_image = self.current_image
-
-        if new_image == "forward":
-            # piscar a cada 5 segundos
-            if self.image_changed_time is None:
-                self.start_time = current_time
-                self.image_changed_time = 0
-
-            if current_time - self.start_time >= 5000 and self.current_image != "blink":
-                new_image = "blink"
-                self.image_changed_time = current_time
-
-            elif self.current_image == "blink" and current_time - self.image_changed_time >= 1000:
-                new_image = "forward"
-                self.image_changed_time = None
-                self.start_time = current_time
-        else:
-            # se estiver left ou right, mantém a imagem (não pisca)
-            pass
-
-        if new_image != self.current_image:
-            self.current_image = new_image
-            self.screen.blit(self.images[new_image], (0, 0))
-            pygame.display.flip()
-
-
+    
+        self.current_image = self.current_direction
 
     def run(self):
         try:

@@ -209,9 +209,9 @@ class OlhosNode(Node):
             self.last_blink_time = pygame.time.get_ticks()
 
         if ros_direction == "esquerda":
-            self.twist.angular.z = 0.3   # gira para a esquerda
+            self.twist.angular.z = -0.3   # gira para a esquerda
         elif ros_direction == "direita":
-            self.twist.angular.z = -0.3  # gira para a direita
+            self.twist.angular.z = 0.3  # gira para a direita
         else:  # centralizado
             self.twist.angular.z = 0.0   # para de girar
         self.cmd_vel_pub.publish(self.twist)

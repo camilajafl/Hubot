@@ -96,8 +96,6 @@ class OlhosNode(Node):
         self.botao_tourista_ativo = False
 
         # SUBSCRIBERS
-        self.sub = self.create_subscription(
-            String, 'eye_direction', self.cb_direction, 10)
         
         #reconhecimento de usuário
         self.sub_user = self.create_subscription(
@@ -165,28 +163,6 @@ class OlhosNode(Node):
         self.screen.blit(txt_surf, txt_rect)
         return False
 
-    def cb_status_captura(self, msg: String):
-        self.status_captura = msg.data
-        if msg.data == "Concluído":
-            self.erro = "Cadastro concluído!"
-            nome_msg = String()
-            nome_msg.data = self.nome_digitado
-            self.pub_treino.publish(nome_msg)  # Dispara treinamento via tópico
-            pygame.display.flip()
-            pygame.time.wait(3000)
-            self.current_page = "Cadastro"
-            self.cadastro_buttons_created = False
-            self.etapa_captura = None
-
-
-    def cb_direction(self, msg: String):
-        # troca de direção interrompe piscar
-        if msg.data in ('left','right','forward'):
-            self.current_direction = msg.data
-            self.blinking         = False
-            self.last_blink_time  = pygame.time.get_ticks()
-            self._draw(self.current_direction)
-
     def _draw(self, key):
         self.screen.fill((200,200,200))
         self.screen.blit(self.images[key], (0,0))
@@ -196,15 +172,15 @@ class OlhosNode(Node):
         self.username = msg.data
 
     # limpador
-    def cb_limpadora(self, msg: String):
-        self.get_logger().info(f"Limpadora recebeu: {msg.data}")
+    # def cb_limpadora(self, msg: String):
+    #     self.get_logger().info(f"Limpadora recebeu: {msg.data}")
 
-    def parar_robo(self):
-        msg = Twist()
-        msg.linear.x = 0.0
-        msg.angular.z = 0.0
-        self.cmd_vel_pub.publish(msg)
-        self.get_logger().info('Robô parado - modo recepcionista ativo')
+    # def parar_robo(self):
+    #     msg = Twist()
+    #     msg.linear.x = 0.0
+    #     msg.angular.z = 0.0
+    #     self.cmd_vel_pub.publish(msg)
+    #     self.get_logger().info('Robô parado - modo recepcionista ativo')
 
     def cb_face_center(self, msg: String):
         # Atualiza a imagem APENAS quando Limpadora for False

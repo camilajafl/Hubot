@@ -86,6 +86,8 @@ class OlhosNode(Node):
         self.cadastro_buttons_created = False
         self.botao_voltar_cadastro = False
 
+        self.twist = Twist()
+
 
         pygame.font.init()
         self.font = pygame.font.SysFont(None, 36)
@@ -113,6 +115,9 @@ class OlhosNode(Node):
         #captura
         #self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
         #self.pub_treino = self.create_publisher(String, 'treino_nome', 10)
+
+        #PUBLISHERS
+        self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
 
 
         #acompanhamento do usuário
@@ -203,6 +208,13 @@ class OlhosNode(Node):
             self.blinking = False
             self.last_blink_time = pygame.time.get_ticks()
 
+        if ros_direction == "esquerda":
+            self.twist.angular.z = 0.3   # gira para a esquerda
+        elif ros_direction == "direita":
+            self.twist.angular.z = -0.3  # gira para a direita
+        else:  # centralizado
+            self.twist.angular.z = 0.0   # para de girar
+        self.cmd_vel_pub.publish(self.twist)
 
 
     def update_image(self):

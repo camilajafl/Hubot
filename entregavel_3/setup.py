@@ -35,6 +35,7 @@ setup(
             'olhos_node = entregavel_3.olhos_node:main',
             'ai= entregavel_3.ai:main',
             'facial = entregavel_3.FacialNode:main',
+            'enrol = entregavel_3.EnrollNode:main',
         ],
     },
 )

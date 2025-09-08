@@ -1,14 +1,14 @@
 import rclpy
 import cv2
-import pickle
 import face_recognition
 from rclpy.node import Node
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 from rclpy.qos import ReliabilityPolicy, QoSProfile
 from std_msgs.msg import String
-from ament_index_python.packages import get_package_share_directory
-import os
+import os, pickle
+from std_srvs.srv import Empty
+import threading
 
 
 class FacialNode(Node):
@@ -20,17 +20,26 @@ class FacialNode(Node):
         self.user_pub = self.create_publisher(String, 'recognized_user', 10)
         self.primeiro_pub = self.create_publisher(String, 'primeiro_user', 10)
         self.face_location_pub = self.create_publisher(String, 'primeiro_face_location', 10) 
-        local2 = ''
 
         self.running = True
         self.bridge = CvBridge()
 
-        # Carregar encodings usando caminho relativo ao pacote
-        share_dir = get_package_share_directory('entregavel_3')
-        encodings_path = os.path.join(share_dir, 'encodings.pickle')
+        # Carregar encodings de um caminho gravável (~/.ros)
+        self.encodings_path = os.path.expanduser('~/.ros/encodings.pickle')
+        if not os.path.exists(self.encodings_path):
+            # 1ª vez: copia o encodings.pickle do pacote (se existir)
+            pkg_default = os.path.join(os.path.dirname(__file__), 'encodings.pickle')
+            if os.path.exists(pkg_default):
+                import shutil
+                os.makedirs(os.path.dirname(self.encodings_path), exist_ok=True)
+                shutil.copy(pkg_default, self.encodings_path)
 
-        with open(encodings_path, 'rb') as f:
+        with open(self.encodings_path, 'rb') as f:
             self.known_data = pickle.load(f)
+
+        self._enc_lock = threading.Lock()
+        self.reload_srv = self.create_service(Empty, 'reload_encodings', self._reload_cb)
+
 
         self.currentname = "Unknown"
         self.unknown_encodings = {}
@@ -45,6 +54,14 @@ class FacialNode(Node):
             self.image_callback,
             QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
         )
+
+    def _reload_cb(self, req, res):
+        with self._enc_lock:
+            with open(self.encodings_path, 'rb') as f:
+                self.known_data = pickle.load(f)
+        self.get_logger().info('Encodings recarregados do disco')
+        return res
+
 
     def image_callback(self, msg):
         local2 = "indefinido" 

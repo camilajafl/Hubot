@@ -118,7 +118,7 @@ class OlhosNode(Node):
 
         #PUBLISHERS
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
-
+        self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
 
         #acompanhamento do usuário
 
@@ -405,40 +405,15 @@ class OlhosNode(Node):
 
                     self.botao_capturar.draw(self.screen)
                     self.botao_voltar_cadastro.draw(self.screen)
-                    '''
-                    # Progresso das fotos
-                    if nome:
-                        caminho_pasta = os.path.join("dataset", nome)
-                        if os.path.exists(caminho_pasta):
-                            total_fotos = len([f for f in os.listdir(caminho_pasta) if f.endswith(".jpg")])
-                            progresso_txt = self.font.render(f"Fotos salvas: {total_fotos}/5", True, BLACK)
-                            self.screen.blit(progresso_txt, (100, 350))
-                        else:
-                            aviso_txt = self.font.render("Nenhuma foto salva ainda.", True, (100, 100, 100))
-                            self.screen.blit(aviso_txt, (100, 350))
-
-                    # Mensagem de erro
-                    if self.erro:
-                        erro_txt = self.font.render(self.erro, True, (200, 0, 0))
-                        self.screen.blit(erro_txt, (100, 200))
-
-                    # Desenha botões
-
-
+                    
                     # Clique "Tirar Foto"
                     if self.botao_capturar.checar_clique(mouse_pos, mouse_click):
-                        if nome == "":
+                        nome = self.input_box.text.strip()
+                        if not nome:
                             self.erro = "Digite um nome válido."
-                        elif os.path.exists(os.path.join("dataset", nome)):
-                            self.erro = "Nome já existe."
                         else:
-                            self.erro = ""
-                            os.makedirs(os.path.join("dataset", nome))
-                            self.etapa_captura = "capturando"
-                            msg = String()
-                            msg.data = nome
-                            self.pub_captura.publish(msg)
-                            self.etapa_captura = "capturando"'''
+                            self.erro = "Enviando pedido de cadastro..."
+                            self.pub_captura.publish(String(data=nome))
 
 
                     # Clique "Voltar"

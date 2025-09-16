@@ -129,6 +129,7 @@ class FacialNode(Node):
             # Localizar a caixa correspondente
             for idx, name in enumerate(names):
                 if name == first_name:
+                    print(first_name)
                     (top, right, bottom, left) = boxes[idx]
                     face_center_x = (left + right) // 2  # Centro horizontal do rosto
                     face_location_str = f"{top},{right},{bottom},{left}"
@@ -149,6 +150,7 @@ class FacialNode(Node):
             first_name = "Unknown"
             # self.face_location_pub.publish(String(data="-1,-1,-1,-1"))
             self.face_location_pub.publish(String(data="centralizado"))
+            print(first_name)
 
         self.primeiro_pub.publish(String(data=first_name))
         self.face_location_pub.publish(String(data=local2))

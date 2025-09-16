@@ -130,7 +130,10 @@ class OlhosNode(Node):
 
         # --- Pygame fullscreen ---
         pygame.init()
-        self.screen = pygame.display.set_mode((1024, 600), pygame.FULLSCREEN)
+        # SEM DEBUG
+        # self.screen = pygame.display.set_mode((1024, 600), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((640, 480))  # janela normal
+
         pygame.display.set_caption("Olhinhos de Raposa")
 
         # --- Carrega imagens pelo caminho relativo ao módulo ---

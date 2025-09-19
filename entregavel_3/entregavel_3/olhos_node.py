@@ -7,73 +7,12 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
 from rclpy.qos import ReliabilityPolicy, QoSProfile
-
+from classes.classes_olhos_node import Botao, InputBox
 
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)
 DARK_BLUE = (30, 100, 200)
 BLACK = (0, 0, 0)
-
-class Botao:
-    def __init__(self, texto, x, y, largura, altura, cor=WHITE, ativo=False):
-        self.texto = texto
-        self.rect = pygame.Rect(x, y, largura, altura)
-        self.ativo = ativo
-        self.cor = BLUE if ativo else cor
-
-    def draw(self, surface):
-        pygame.draw.rect(surface, self.cor, self.rect)
-        pygame.draw.rect(surface, BLACK, self.rect, 3)
-        font = pygame.font.SysFont(None, 36)
-        txt_surf = font.render(self.texto, True, BLACK)
-        txt_rect = txt_surf.get_rect(center=self.rect.center)
-        surface.blit(txt_surf, txt_rect)
-
-    def checar_clique(self, mouse_pos, mouse_click):
-        return self.rect.collidepoint(mouse_pos) and mouse_click
-
-    def ativar(self):
-        self.ativo = True
-        self.cor = BLUE
-
-    def desativar(self):
-        self.ativo = False
-        self.cor = WHITE
-
-
-
-class InputBox:
-    def __init__(self, x, y, w, h, text=''):
-        self.rect = pygame.Rect(x, y, w, h)
-        self.color = pygame.Color('white')
-        self.text = text
-        self.txt_surface = pygame.font.SysFont(None, 36).render(text, True, BLACK)
-        self.active = False
-
-    def handle_event(self, event):
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.rect.collidepoint(event.pos):
-                self.active = not self.active
-            else:
-                self.active = False
-        if event.type == pygame.KEYDOWN and self.active:
-            if event.key == pygame.K_RETURN:
-                return self.text
-            elif event.key == pygame.K_BACKSPACE:
-                self.text = self.text[:-1]
-            else:
-                if len(self.text) < 20:
-                    self.text += event.unicode
-            self.txt_surface = pygame.font.SysFont(None, 36).render(self.text, True, BLACK)
-        return None
-
-    def draw(self, screen):
-        pygame.draw.rect(screen, self.color, self.rect)             # Preenche a caixa
-        pygame.draw.rect(screen, BLACK, self.rect, 2)      
-        #pygame.draw.rect(screen, self.color, self.rect, 2)
-        screen.blit(self.txt_surface, (self.rect.x + 5, self.rect.y + 5))
-
-
 
 class OlhosNode(Node):
     def __init__(self):
@@ -108,14 +47,6 @@ class OlhosNode(Node):
         self.sub_face_center = self.create_subscription(
             String, 'primeiro_face_location', self.cb_face_center, QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT))
 
-        #limpadora
-        #self.sub_limpadora = self.create_subscription(String,'limpador',self.cb_limpadora,10)
-        #self.limpador_ativo = False
-
-        #captura
-        #self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
-        #self.pub_treino = self.create_publisher(String, 'treino_nome', 10)
-
         #PUBLISHERS
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
@@ -130,9 +61,11 @@ class OlhosNode(Node):
 
         # --- Pygame fullscreen ---
         pygame.init()
-        # SEM DEBUG
+        # PARA DEBUG
+        self.screen = pygame.display.set_mode((1024, 600))
+
+        #PRO PROJETO
         # self.screen = pygame.display.set_mode((1024, 600), pygame.FULLSCREEN)
-        self.screen = pygame.display.set_mode((640, 480))  # janela normal
 
         pygame.display.set_caption("Olhinhos de Raposa")
 
@@ -179,16 +112,6 @@ class OlhosNode(Node):
     def cb_user(self, msg: String):
         self.username = msg.data
 
-    # limpador
-    # def cb_limpadora(self, msg: String):
-    #     self.get_logger().info(f"Limpadora recebeu: {msg.data}")
-
-    # def parar_robo(self):
-    #     msg = Twist()
-    #     msg.linear.x = 0.0
-    #     msg.angular.z = 0.0
-    #     self.cmd_vel_pub.publish(msg)
-    #     self.get_logger().info('Robô parado - modo recepcionista ativo')
 
     def cb_face_center(self, msg: String):
         # Atualiza a imagem APENAS quando Limpadora for False
@@ -248,12 +171,6 @@ class OlhosNode(Node):
                         return
 
                 now = pygame.time.get_ticks()
-
-                # if self.limpador_ativo:
-                #     rclpy.spin_once(self.limpador_node, timeout_sec=0)
-                # else:
-                #     # Se limpador desligado, para o robô
-                #     self.parar_robo()
 
                 #logica de reconhecimento
                 if self.current_page == "menu":

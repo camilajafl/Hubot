@@ -25,9 +25,18 @@ class Botao:
         self.rect = pygame.Rect(x, y, largura, altura)
         self.ativo = ativo
         self.cor = BLUE if ativo else cor
+        self.pressed_until = 0  # feedback visual breve após clique
 
     def draw(self, surface):
-        pygame.draw.rect(surface, self.cor, self.rect)
+        now = pygame.time.get_ticks()
+        # cor base
+        base_color = self.cor
+        # se estiver no "flash" de clique, escurece temporariamente
+        if now < self.pressed_until:
+            draw_color = DARK_BLUE
+        else:
+            draw_color = base_color
+        pygame.draw.rect(surface, draw_color, self.rect)
         pygame.draw.rect(surface, BLACK, self.rect, 3)
         font = pygame.font.SysFont(None, 36)
         txt_surf = font.render(self.texto, True, BLACK)
@@ -35,7 +44,11 @@ class Botao:
         surface.blit(txt_surf, txt_rect)
 
     def checar_clique(self, mouse_pos, mouse_click):
-        return self.rect.collidepoint(mouse_pos) and mouse_click
+        clicked = self.rect.collidepoint(mouse_pos) and mouse_click
+        if clicked:
+            # ativa flash de clique por 150ms
+            self.pressed_until = pygame.time.get_ticks() + 150
+        return clicked
 
     def ativar(self):
         self.ativo = True
@@ -170,9 +183,13 @@ class OlhosNode(Node):
         self.screen.fill((200,200,200))
         self.screen.blit(self.images[key], (0,0))
 
-    def _draw_button_simple(self, text, x, y, w=200, h=60):
+    def _draw_button_simple(self, text, x, y, w=200, h=60, mouse_pos=None, mouse_click=False):
         rect = pygame.Rect(x, y, w, h)
-        pygame.draw.rect(self.screen, BLUE, rect)
+        # feedback de clique/hover para botões "simples"
+        color = BLUE
+        if mouse_pos is not None and rect.collidepoint(mouse_pos):
+            color = DARK_BLUE if mouse_click else BLUE
+        pygame.draw.rect(self.screen, color, rect)
         pygame.draw.rect(self.screen, BLACK, rect, 3)
         txt_surf = self.font.render(text, True, WHITE)
         txt_rect = txt_surf.get_rect(center=rect.center)
@@ -473,9 +490,9 @@ class OlhosNode(Node):
                     title = self.font.render("Painel de cadastros", True, BLACK)
                     self.screen.blit(title, (320, 30))
 
-                    btn_voltar = self._draw_button_simple("Voltar", 800, 500)
-                    btn_prev   = self._draw_button_simple("<", 100, 500, 80, 50)
-                    btn_next   = self._draw_button_simple(">", 200, 500, 80, 50)
+                    btn_voltar = self._draw_button_simple("Voltar", 800, 500, mouse_pos=mouse_pos, mouse_click=mouse_click)
+                    btn_prev   = self._draw_button_simple("<", 100, 500, 80, 50, mouse_pos=mouse_pos, mouse_click=mouse_click)
+                    btn_next   = self._draw_button_simple(">", 200, 500, 80, 50, mouse_pos=mouse_pos, mouse_click=mouse_click)
 
                     if not self.painel_names:
                         self._load_unique_names()
@@ -488,8 +505,8 @@ class OlhosNode(Node):
                         name = self.painel_names[i]
                         name_txt = self.font.render(name, True, BLACK)
                         self.screen.blit(name_txt, (120, y))
-                        r_edit = self._draw_button_simple("Editar", 600, y-10, 120, 40)
-                        r_del  = self._draw_button_simple("Apagar", 740, y-10, 120, 40)
+                        r_edit = self._draw_button_simple("Editar", 600, y-10, 120, 40, mouse_pos=mouse_pos, mouse_click=mouse_click)
+                        r_del  = self._draw_button_simple("Apagar", 740, y-10, 120, 40, mouse_pos=mouse_pos, mouse_click=mouse_click)
                         self.row_buttons.append((name, r_edit, r_del))
                         y += 70
 
@@ -518,8 +535,8 @@ class OlhosNode(Node):
                         pygame.draw.rect(self.screen, BLACK, (200, 200, 600, 180), 2)
                         t1 = self.font.render(f"Apagar '{self.confirm_delete_name}'?", True, BLACK)
                         self.screen.blit(t1, (220, 230))
-                        r_yes = self._draw_button_simple("Sim", 260, 320, 120, 50)
-                        r_no  = self._draw_button_simple("Cancelar", 420, 320, 160, 50)
+                        r_yes = self._draw_button_simple("Sim", 260, 320, 120, 50, mouse_pos=mouse_pos, mouse_click=mouse_click)
+                        r_no  = self._draw_button_simple("Cancelar", 420, 320, 160, 50, mouse_pos=mouse_pos, mouse_click=mouse_click)
                         if r_yes.collidepoint(mouse_pos) and mouse_click:
                             self._delete_name(self.confirm_delete_name)
                             self.confirm_delete_name = None
@@ -538,8 +555,8 @@ class OlhosNode(Node):
                         if res is not None:
                             pass
                     self.edit_input.draw(self.screen)
-                    r_salvar = self._draw_button_simple("Salvar", 420, 120, 140, 50)
-                    r_cancel = self._draw_button_simple("Cancelar", 580, 120, 160, 50)
+                    r_salvar = self._draw_button_simple("Salvar", 420, 120, 140, 50, mouse_pos=mouse_pos, mouse_click=mouse_click)
+                    r_cancel = self._draw_button_simple("Cancelar", 580, 120, 160, 50, mouse_pos=mouse_pos, mouse_click=mouse_click)
                     if r_salvar.collidepoint(mouse_pos) and mouse_click:
                         novo = self.edit_input.text.strip()
                         if novo and novo != self.editing_name:
@@ -560,17 +577,16 @@ class OlhosNode(Node):
 
     # botão com hover/click (reutilizado do código original)
     def _draw_button(self, text, rect, mouse_pos, mouse_click):
+        # escurece quando hover/click para feedback
         if rect.collidepoint(mouse_pos):
-            color = DARK_BLUE
-            if mouse_click:
-                return True
+            color = DARK_BLUE if mouse_click else BLUE
         else:
             color = BLUE
         pygame.draw.rect(self.screen, color, rect)
         txt_surf = self.font.render(text, True, WHITE)
         txt_rect = txt_surf.get_rect(center=rect.center)
         self.screen.blit(txt_surf, txt_rect)
-        return False
+        return rect.collidepoint(mouse_pos) and mouse_click
 
 def main(args=None):
     rclpy.init(args=args)

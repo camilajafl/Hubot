@@ -47,7 +47,7 @@ class Botao:
         clicked = self.rect.collidepoint(mouse_pos) and mouse_click
         if clicked:
             # ativa flash de clique por 150ms
-            self.pressed_until = pygame.time.get_ticks() + 150
+            self.pressed_until = pygame.time.get_ticks() + 250
         return clicked
 
     def ativar(self):
@@ -338,7 +338,7 @@ class OlhosNode(Node):
                     if not self.config_buttons_created:
                         self.botao_orelha = Botao("Orelha", 100, 100, 200, 60)
                         self.botao_braco = Botao("Braço", 100, 200, 200, 60)
-                        self.botao_recepcionista = Botao("Recepcionista", 100, 300, 200, 60, ativo=True)
+                        self.botao_recepcionista = Botao("Recepcionista", 100, 300, 200, 60, ativo=False)
                         self.botao_limpadora = Botao("Limpadora", 100, 400, 200, 60)
                         self.botao_tourista = Botao("Turista", 100, 500, 200, 60)
                         self.botao_voltar = Botao("Voltar", 800, 500, 200, 60)
@@ -350,10 +350,8 @@ class OlhosNode(Node):
                         self.config_buttons_created = True
 
                     for botao in self.botoes_config:
-                        botao.draw(self.screen)
-
-                    for botao in self.botoes_config:
-                        if botao.checar_clique(mouse_pos, mouse_click):
+                        clicked = botao.checar_clique(mouse_pos, mouse_click)
+                        if clicked:
                             if botao.texto == "Voltar":
                                 self.current_page = "menu"
                                 self.config_buttons_created = False
@@ -379,6 +377,9 @@ class OlhosNode(Node):
                                 self.painel_buttons_created = False
                                 self.blinking = False
 
+                    for botao in self.botoes_config:
+                        botao.draw(self.screen)
+
                 # --------------- CADASTRO ---------------
                 elif self.current_page == "Cadastro":
                     # limpa fundo para não sobrepor elementos da tela anterior
@@ -394,10 +395,8 @@ class OlhosNode(Node):
                         self.avancado_buttons_created = True
 
                     for botao in self.botoes_avancado:
-                        botao.draw(self.screen)
-
-                    for botao in self.botoes_avancado:
-                        if botao.checar_clique(mouse_pos, mouse_click):
+                        clicked = botao.checar_clique(mouse_pos, mouse_click)
+                        if clicked:
                             if botao.texto == "Voltar":
                                 self.current_page = "pagina_2"
                                 self.avancado_buttons_created = False
@@ -415,6 +414,9 @@ class OlhosNode(Node):
                                 self.current_page = "painel_cadastros"
                                 self.painel_buttons_created = False
                                 self.blinking = False
+
+                    for botao in self.botoes_avancado:
+                        botao.draw(self.screen)
 
                 # --------------- NOVO CADASTRO ---------------
                 elif self.current_page == "pagina_novo_cadastro":
@@ -454,8 +456,9 @@ class OlhosNode(Node):
                     self.screen.blit(label, (preview_rect.x, preview_rect.y-24))
 
                     # botões
-                    self.botao_capturar.draw(self.screen)
-                    self.botao_voltar_cadastro.draw(self.screen)
+                    # processa cliques antes de desenhar (feedback imediato)
+                    cap_clicked = self.botao_capturar.checar_clique(mouse_pos, mouse_click)
+                    back_clicked = self.botao_voltar_cadastro.checar_clique(mouse_pos, mouse_click)
 
                     # status de cadastro (mensagem do EnrollNode)
                     now_ms = pygame.time.get_ticks()
@@ -463,7 +466,7 @@ class OlhosNode(Node):
                         status_surf = self.font_small.render(self.last_status_text, True, self.last_status_color)
                         self.screen.blit(status_surf, (100, 320))
 
-                    if self.botao_capturar.checar_clique(mouse_pos, mouse_click):
+                    if cap_clicked:
                         if not nome:
                             self.erro = "Digite um nome válido."
                             self.last_status_text = self.erro
@@ -476,9 +479,13 @@ class OlhosNode(Node):
                             self.last_status_color = BLACK
                             self.status_show_until_ms = pygame.time.get_ticks() + 2000
 
-                    if self.botao_voltar_cadastro.checar_clique(mouse_pos, mouse_click):
+                    if back_clicked:
                         self.current_page = "Cadastro"
                         self.cadastro_buttons_created = False
+
+                    # desenha botões após processar clique (mostra flash imediatamente)
+                    self.botao_capturar.draw(self.screen)
+                    self.botao_voltar_cadastro.draw(self.screen)
 
                     if self.erro:
                         erro_txt = self.font_small.render(self.erro, True, RED)

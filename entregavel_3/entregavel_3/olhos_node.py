@@ -2,16 +2,22 @@ import os
 import pickle
 import rclpy
 import pygame
+import cv2
+import numpy as np
 from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
 from rclpy.qos import ReliabilityPolicy, QoSProfile
 from std_srvs.srv import Empty
+from sensor_msgs.msg import CompressedImage
+from cv_bridge import CvBridge
 
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)
 DARK_BLUE = (30, 100, 200)
 BLACK = (0, 0, 0)
+RED = (190, 40, 40)
+GREEN = (30, 150, 70)
 
 class Botao:
     def __init__(self, texto, x, y, largura, altura, cor=WHITE, ativo=False):
@@ -93,10 +99,27 @@ class OlhosNode(Node):
         # cliente para recarregar encodings (mesmo do EnrollNode)
         self.reload_cli = self.create_client(Empty, 'reload_encodings')
 
+        # live preview da câmera
+        self.bridge = CvBridge()
+        self.last_frame_bgr = None
+        self.create_subscription(
+            CompressedImage,
+            '/image_raw/compressed',
+            self._img_cb,
+            QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
+        )
+
+        # status do cadastro (texto do EnrollNode)
+        self.last_status_text = ""
+        self.last_status_color = BLACK
+        self.status_show_until_ms = 0
+        self.create_subscription(String, 'enroll_status', self._status_cb, 10)
+
         self.twist = Twist()
 
         pygame.font.init()
         self.font = pygame.font.SysFont(None, 36)
+        self.font_small = pygame.font.SysFont(None, 28)
 
         # modo de estado
         self.botao_recepcionista_ativo = True
@@ -181,6 +204,25 @@ class OlhosNode(Node):
 
     def update_image(self):
         self.current_image = self.current_direction
+
+    # ---------- Callbacks auxiliares ----------
+    def _img_cb(self, msg: CompressedImage):
+        try:
+            self.last_frame_bgr = self.bridge.compressed_imgmsg_to_cv2(msg, "bgr8")
+        except Exception:
+            self.last_frame_bgr = None
+
+    def _status_cb(self, msg: String):
+        # guarda texto de status por 5s
+        txt = msg.data or ""
+        color = BLACK
+        if "Falha" in txt or "erro" in txt.lower():
+            color = RED
+        elif "OK" in txt or "cadastrado" in txt.lower() or "amostras" in txt.lower():
+            color = GREEN
+        self.last_status_text = txt
+        self.last_status_color = color
+        self.status_show_until_ms = pygame.time.get_ticks() + 5000
 
     # ---------- painel de cadastros helpers ----------
     def _read_pickle(self):
@@ -380,21 +422,50 @@ class OlhosNode(Node):
                     nome = self.input_box.text.strip()
                     nome_txt = self.font.render(f"Nome: {nome}", True, BLACK)
                     self.screen.blit(nome_txt, (100, 150))
+
+                    # --- PREVIEW AO VIVO acima do botão Voltar ---
+                    preview_rect = pygame.Rect(680, 240, 320, 240)  # x,y,w,h (fica acima do Voltar em 800,500)
+                    pygame.draw.rect(self.screen, (235,235,235), preview_rect)
+                    pygame.draw.rect(self.screen, BLACK, preview_rect, 2)
+                    if self.last_frame_bgr is not None:
+                        # BGR -> RGB, resize, blit
+                        rgb = cv2.cvtColor(self.last_frame_bgr, cv2.COLOR_BGR2RGB)
+                        frame_resized = cv2.resize(rgb, (preview_rect.w-4, preview_rect.h-4))
+                        surf = pygame.image.frombuffer(frame_resized.tobytes(), (frame_resized.shape[1], frame_resized.shape[0]), 'RGB')
+                        self.screen.blit(surf, (preview_rect.x+2, preview_rect.y+2))
+                    label = self.font_small.render("Pré-visualização", True, BLACK)
+                    self.screen.blit(label, (preview_rect.x, preview_rect.y-24))
+
+                    # botões
                     self.botao_capturar.draw(self.screen)
                     self.botao_voltar_cadastro.draw(self.screen)
+
+                    # status de cadastro (mensagem do EnrollNode)
+                    now_ms = pygame.time.get_ticks()
+                    if self.last_status_text and now_ms <= self.status_show_until_ms:
+                        status_surf = self.font_small.render(self.last_status_text, True, self.last_status_color)
+                        self.screen.blit(status_surf, (100, 320))
+
                     if self.botao_capturar.checar_clique(mouse_pos, mouse_click):
-                        nome = self.input_box.text.strip()
                         if not nome:
                             self.erro = "Digite um nome válido."
+                            self.last_status_text = self.erro
+                            self.last_status_color = RED
+                            self.status_show_until_ms = pygame.time.get_ticks() + 3000
                         else:
                             self.erro = "Enviando pedido de cadastro..."
                             self.pub_captura.publish(String(data=nome))
+                            self.last_status_text = self.erro
+                            self.last_status_color = BLACK
+                            self.status_show_until_ms = pygame.time.get_ticks() + 2000
+
                     if self.botao_voltar_cadastro.checar_clique(mouse_pos, mouse_click):
                         self.current_page = "Cadastro"
                         self.cadastro_buttons_created = False
+
                     if self.erro:
-                        erro_txt = self.font.render(self.erro, True, (180,0,0))
-                        self.screen.blit(erro_txt, (100, 320))
+                        erro_txt = self.font_small.render(self.erro, True, RED)
+                        self.screen.blit(erro_txt, (100, 350))
 
                 # --------------- PAINEL DE CADASTROS ---------------
                 elif self.current_page == "painel_cadastros":

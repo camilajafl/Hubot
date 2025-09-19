@@ -7,7 +7,7 @@ from rclpy.node import Node
 from std_msgs.msg import String
 from geometry_msgs.msg import Twist
 from rclpy.qos import ReliabilityPolicy, QoSProfile
-from classes.classes_olhos_node import Botao, InputBox
+
 
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)

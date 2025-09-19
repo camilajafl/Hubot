@@ -126,6 +126,7 @@ class OlhosNode(Node):
         self.last_status_text = ""
         self.last_status_color = BLACK
         self.status_show_until_ms = 0
+        self.captura_em_andamento = False  # controla ciclo de envio/callback
         self.create_subscription(String, 'enroll_status', self._status_cb, 10)
 
         self.twist = Twist()
@@ -230,16 +231,22 @@ class OlhosNode(Node):
             self.last_frame_bgr = None
 
     def _status_cb(self, msg: String):
-        # guarda texto de status por 5s
+        # guarda texto de status por 5s e limpa placeholder de "Enviando..."
         txt = msg.data or ""
         color = BLACK
         if "Falha" in txt or "erro" in txt.lower():
             color = RED
-        elif "OK" in txt or "cadastrado" in txt.lower() or "amostras" in txt.lower():
+            self.captura_em_andamento = False
+        elif "cadastrado" in txt.lower():
+            color = GREEN
+            self.captura_em_andamento = False
+        elif "OK" in txt:
             color = GREEN
         self.last_status_text = txt
         self.last_status_color = color
         self.status_show_until_ms = pygame.time.get_ticks() + 5000
+        # ao receber qualquer status, some com o placeholder
+        self.erro = ""
 
     # ---------- painel de cadastros helpers ----------
     def _read_pickle(self):
@@ -465,6 +472,11 @@ class OlhosNode(Node):
                     if self.last_status_text and now_ms <= self.status_show_until_ms:
                         status_surf = self.font_small.render(self.last_status_text, True, self.last_status_color)
                         self.screen.blit(status_surf, (100, 320))
+                    elif self.captura_em_andamento:
+                        # se ainda não chegou status novo mas o placeholder expirou, mantém mensagem neutra curta
+                        hold_txt = "Aguardando amostras..."
+                        status_surf = self.font_small.render(hold_txt, True, BLACK)
+                        self.screen.blit(status_surf, (100, 320))
 
                     if cap_clicked:
                         if not nome:
@@ -472,12 +484,14 @@ class OlhosNode(Node):
                             self.last_status_text = self.erro
                             self.last_status_color = RED
                             self.status_show_until_ms = pygame.time.get_ticks() + 3000
+                            self.captura_em_andamento = False
                         else:
                             self.erro = "Enviando pedido de cadastro..."
                             self.pub_captura.publish(String(data=nome))
                             self.last_status_text = self.erro
                             self.last_status_color = BLACK
                             self.status_show_until_ms = pygame.time.get_ticks() + 2000
+                            self.captura_em_andamento = True
 
                     if back_clicked:
                         self.current_page = "Cadastro"
@@ -487,7 +501,7 @@ class OlhosNode(Node):
                     self.botao_capturar.draw(self.screen)
                     self.botao_voltar_cadastro.draw(self.screen)
 
-                    if self.erro:
+                    if self.erro and not (self.last_status_text and now_ms <= self.status_show_until_ms):
                         erro_txt = self.font_small.render(self.erro, True, RED)
                         self.screen.blit(erro_txt, (100, 350))
 

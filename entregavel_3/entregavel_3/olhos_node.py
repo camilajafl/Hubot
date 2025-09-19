@@ -120,10 +120,10 @@ class OlhosNode(Node):
         # --- Pygame fullscreen ---
         pygame.init()
         # PARA DEBUG
-        self.screen = pygame.display.set_mode((1024, 600))
+        # self.screen = pygame.display.set_mode((1024, 600))
 
         #PRO PROJETO
-        # self.screen = pygame.display.set_mode((1024, 600), pygame.FULLSCREEN)
+        self.screen = pygame.display.set_mode((1024, 600), pygame.FULLSCREEN)
 
         pygame.display.set_caption("Olhinhos de Raposa")
 

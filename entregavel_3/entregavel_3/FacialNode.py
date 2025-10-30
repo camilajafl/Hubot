@@ -156,19 +156,19 @@ class FacialNode(Node):
         self.face_location_pub.publish(String(data=local2))
 
         #Descomentar para ver rosto
-        # Desenhar boxes na imagem
-        for ((top, right, bottom, left), name) in zip(boxes, names):
-            cv2.rectangle(cv_image, (left, top), (right, bottom), (0, 255, 225), 2)
-            y = top - 15 if top - 15 > 15 else top + 15
-            cv2.putText(cv_image, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 255), 2)
+        # # Desenhar boxes na imagem
+        # for ((top, right, bottom, left), name) in zip(boxes, names):
+        #     cv2.rectangle(cv_image, (left, top), (right, bottom), (0, 255, 225), 2)
+        #     y = top - 15 if top - 15 > 15 else top + 15
+        #     cv2.putText(cv_image, name, (left, y), cv2.FONT_HERSHEY_SIMPLEX, .8, (0, 255, 255), 2)
 
-        # Desenhar linhas verticais para a zona central
-        cv2.line(cv_image, (frame_center_x - 200, 0), (frame_center_x - 200, cv_image.shape[0]), (255, 0, 0), 2)
-        cv2.line(cv_image, (frame_center_x + 200, 0), (frame_center_x + 200, cv_image.shape[0]), (0, 0, 255), 2)
+        # # Desenhar linhas verticais para a zona central
+        # cv2.line(cv_image, (frame_center_x - 200, 0), (frame_center_x - 200, cv_image.shape[0]), (255, 0, 0), 2)
+        # cv2.line(cv_image, (frame_center_x + 200, 0), (frame_center_x + 200, cv_image.shape[0]), (0, 0, 255), 2)
 
 
-        cv2.imshow("Reconhecimento Facial", cv_image)
-        cv2.waitKey(1)
+        # cv2.imshow("Reconhecimento Facial", cv_image)
+        # cv2.waitKey(1)
 
 
 def main(args=None):

@@ -25,14 +25,20 @@ pins = {
     "braco_dir": 12
     }
 
+servo_angles = {}   # novo dicionário GLOBAL para armazenar ângulos de cada servo
+
 servos = {}
-for nome, pin in pins.items(): 
-    GPIO.setup(pin, GPIO.OUT) 
+for nome, pin in pins.items():
+    GPIO.setup(pin, GPIO.OUT)
     pwm = GPIO.PWM(pin, 50)  # 50 Hz p/ servo
+
     inicial = 90
-    pwm.start(2.5 + (inicial * 10.0 / 180.0))  # posição neutra NADA DE 0
-    pwm.last_angle = inicial
+    duty = 2.5 + (inicial * 10.0 / 180.0)
+    pwm.start(duty)
+
     servos[nome] = pwm
+    servo_angles[nome] = inicial   # ← Armazena aqui, NÃO no objeto PWM
+
 
 
 WHITE = (255, 255, 255)

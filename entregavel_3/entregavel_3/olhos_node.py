@@ -447,12 +447,15 @@ class OlhosNode(Node):
                             #SERVO
                             elif botao.texto == "Orelha":
                                 if self.botao_orelha.ativo:
+                                    # DESLIGA
                                     self.botao_orelha.desativar()
                                     self.botao_orelha_ativo = False
                                 else:
+                                    # LIGA
                                     self.botao_orelha.ativar()
                                     self.botao_orelha_ativo = True
                                     threading.Thread(target=self.animar_orelhas, daemon=True).start()
+
     
                             elif botao.texto == "Braço":
                                 if self.botao_braco.ativo:
@@ -462,6 +465,7 @@ class OlhosNode(Node):
                                     self.botao_braco.ativar()
                                     self.botao_braco_ativo = True
                                     threading.Thread(target=self.animar_bracos, daemon=True).start()
+
 
                             elif botao.texto == "Cadastro":
                                 self.current_page = "Cadastro"

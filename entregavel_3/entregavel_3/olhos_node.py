@@ -26,14 +26,11 @@ pins = {
     }
 
 servos = {}
-for nome, pin in pins.items():
-    GPIO.setup(pin, GPIO.OUT)
-    pwm = GPIO.PWM(pin, 50)  # 50 Hz
-    pwm.start(7.5)           # posição neutra
-    pwm.last_angle = 90      # <- ADICIONE ISTO
+for nome, pin in pins.items(): 
+    GPIO.setup(pin, GPIO.OUT) 
+    pwm = GPIO.PWM(pin, 50) 
+    pwm.start(0) 
     servos[nome] = pwm
-
-
 
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)

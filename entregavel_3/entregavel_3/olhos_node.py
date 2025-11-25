@@ -13,7 +13,7 @@ from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 
 
-#pinos SERVOS   
+#pinos SERVOS
 import RPi.GPIO as GPIO
 import time
 import threading
@@ -26,12 +26,10 @@ pins = {
     }
 
 servos = {}
-servos = {}
 for nome, pin in pins.items():
     GPIO.setup(pin, GPIO.OUT)
-    pwm = GPIO.PWM(pin, 50)  # 50 Hz
-    pwm.start(7.5)  # posição neutra (evita tremor ao inicializar)
-    pwm.last_angle = 90     # garante atributo inicial usado pelo mover_servo_suave
+    pwm = GPIO.PWM(pin, 50)
+    pwm.start(0)
     servos[nome] = pwm
 
 
@@ -212,55 +210,49 @@ class OlhosNode(Node):
         self.screen.fill((200,200,200))
         self.screen.blit(self.images[key], (0,0))
 
-    def angulo_para_duty(self, angulo):
-        # mapeia 0..180 graus para duty (~2.5 .. 12.5). Ajuste se seu servo precisar.
-        return 2.5 + (angulo * 10.0 / 180.0)
+    
+    def mover_servo(self, pwm, angulo):
+        duty = 2 + (angulo / 18)
+        pwm.ChangeDutyCycle(duty)
+        time.sleep(0.3)
 
-    def mover_servo_suave(self, pwm, angulo_final, passos=30, dt=0.03):
-        """Move o servo do pwm suavemente até angulo_final.
-           Usa pwm.last_angle quando disponível; mantém o último duty (não zera).
-        """
-        # ângulo inicial = atributo pwm.last_angle se existir, senão 90°
-        angulo_inicial = getattr(pwm, 'last_angle', 90.0)
-        atual = float(angulo_inicial)
-
-        passos = max(2, int(passos))
-        delta = (float(angulo_final) - atual) / passos
-
-        for i in range(1, passos + 1):
-            ang = atual + delta * i
-            duty = self.angulo_para_duty(ang)
-            pwm.ChangeDutyCycle(duty)
-            pwm.last_angle = ang
-            time.sleep(dt)
-
-        # garante exato final (sem zerar o PWM)
-        pwm.last_angle = float(angulo_final)
-        pwm.ChangeDutyCycle(self.angulo_para_duty(pwm.last_angle))
+    def desligar_servo(self, pwm):
+        pwm.ChangeDutyCycle(0)   # para tremilique
 
     def animar_orelhas(self):
         while self.botao_orelha_ativo:
-            self.mover_servo_suave(servos["orelha_esq"], 0)
-            self.mover_servo_suave(servos["orelha_dir"], 90)
-            time.sleep(0.1)
+            self.mover_servo(servos["orelha_esq"], 0)
+            self.mover_servo(servos["orelha_dir"], 90)
+            time.sleep(0.3)
+
             if not self.botao_orelha_ativo:
                 break
-            self.mover_servo_suave(servos["orelha_esq"], 90)
-            self.mover_servo_suave(servos["orelha_dir"], 0)
-            time.sleep(0.1)
-        # mantém a última posição (não zera) — evita tremores
+
+            self.mover_servo(servos["orelha_esq"], 90)
+            self.mover_servo(servos["orelha_dir"], 0)
+            time.sleep(0.3)
+
+        # ao sair do loop → desliga PWM
+        self.desligar_servo(servos["orelha_esq"])
+        self.desligar_servo(servos["orelha_dir"])
+
 
     def animar_bracos(self):
         while self.botao_braco_ativo:
-            self.mover_servo_suave(servos["braco_esq"], 0)
-            self.mover_servo_suave(servos["braco_dir"], 90)
-            time.sleep(0.1)
+            self.mover_servo(servos["braco_esq"], 0)
+            self.mover_servo(servos["braco_dir"], 90)
+            time.sleep(0.3)
+
             if not self.botao_braco_ativo:
                 break
-            self.mover_servo_suave(servos["braco_esq"], 90)
-            self.mover_servo_suave(servos["braco_dir"], 0)
-            time.sleep(0.1)
-        # mantém última posição
+
+            self.mover_servo(servos["braco_esq"], 90)
+            self.mover_servo(servos["braco_dir"], 0)
+            time.sleep(0.3)
+
+        # desliga PWM ao sair
+        self.desligar_servo(servos["braco_esq"])
+        self.desligar_servo(servos["braco_dir"])
 
 
     def _draw_button_simple(self, text, x, y, w=200, h=60, mouse_pos=None, mouse_click=False):
@@ -455,15 +447,12 @@ class OlhosNode(Node):
                             #SERVO
                             elif botao.texto == "Orelha":
                                 if self.botao_orelha.ativo:
-                                    # DESLIGA
                                     self.botao_orelha.desativar()
                                     self.botao_orelha_ativo = False
                                 else:
-                                    # LIGA
                                     self.botao_orelha.ativar()
                                     self.botao_orelha_ativo = True
                                     threading.Thread(target=self.animar_orelhas, daemon=True).start()
-
     
                             elif botao.texto == "Braço":
                                 if self.botao_braco.ativo:
@@ -473,7 +462,6 @@ class OlhosNode(Node):
                                     self.botao_braco.ativar()
                                     self.botao_braco_ativo = True
                                     threading.Thread(target=self.animar_bracos, daemon=True).start()
-
 
                             elif botao.texto == "Cadastro":
                                 self.current_page = "Cadastro"
@@ -694,9 +682,8 @@ class OlhosNode(Node):
         finally:
             #SERVO
             for servo in servos.values():
-                servo.ChangeDutyCycle(0)
                 servo.stop()
-            GPIO.cleanup()
+                GPIO.cleanup()
             pygame.quit()
             rclpy.shutdown()
 

@@ -22,9 +22,8 @@ pins = {
     "orelha_esq": 21,
     "orelha_dir": 20,
     "braco_esq": 16,
-    "braco_dir": 12,
-    "extra": 21
-}
+    "braco_dir": 12
+    }
 
 servos = {}
 for nome, pin in pins.items():

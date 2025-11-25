@@ -211,11 +211,11 @@ class OlhosNode(Node):
         self.screen.blit(self.images[key], (0,0))
 
     #servos
-    def mover_servo(self,pwm, angulo):
+    def mover_servo(self, pwm, angulo):
         duty = 2 + (angulo / 18)
         pwm.ChangeDutyCycle(duty)
-        time.sleep(0.5)
-        pwm.ChangeDutyCycle(0)
+        time.sleep(0.4)
+
     
     def animar_orelhas(self):
         while self.botao_orelha_ativo:
@@ -428,7 +428,7 @@ class OlhosNode(Node):
                             elif botao.texto == "Orelha":
                                 if self.botao_orelha.ativo:
                                     self.botao_orelha.desativar()
-                                    botao_orelha_ativo = False
+                                    self.botao_orelha_ativo = False
                                 else:
                                     self.botao_orelha.ativar()
                                     self.botao_orelha_ativo = True
@@ -437,10 +437,10 @@ class OlhosNode(Node):
                             elif botao.texto == "Braço":
                                 if self.botao_braco.ativo:
                                     self.botao_braco.desativar()
-                                    botao_braco_ativo = False
+                                    self.botao_braco_ativo = False
                                 else:
                                     self.botao_braco.ativar()
-                                    botao_braco_ativo = True
+                                    self.botao_braco_ativo = True
                                     threading.Thread(target=self.animar_bracos, daemon=True).start()
 
                             elif botao.texto == "Cadastro":

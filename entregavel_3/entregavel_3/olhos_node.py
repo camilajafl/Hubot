@@ -210,30 +210,50 @@ class OlhosNode(Node):
         self.screen.fill((200,200,200))
         self.screen.blit(self.images[key], (0,0))
 
-    #servos
+    
     def mover_servo(self, pwm, angulo):
         duty = 2 + (angulo / 18)
         pwm.ChangeDutyCycle(duty)
-        time.sleep(0.4)
+        time.sleep(0.3)
 
-    
+    def desligar_servo(self, pwm):
+        pwm.ChangeDutyCycle(0)   # para tremilique
+
     def animar_orelhas(self):
         while self.botao_orelha_ativo:
             self.mover_servo(servos["orelha_esq"], 0)
             self.mover_servo(servos["orelha_dir"], 90)
-            time.sleep(0.5)
+            time.sleep(0.3)
+
+            if not self.botao_orelha_ativo:
+                break
+
             self.mover_servo(servos["orelha_esq"], 90)
             self.mover_servo(servos["orelha_dir"], 0)
-            time.sleep(0.5)
+            time.sleep(0.3)
+
+        # ao sair do loop → desliga PWM
+        self.desligar_servo(servos["orelha_esq"])
+        self.desligar_servo(servos["orelha_dir"])
+
 
     def animar_bracos(self):
         while self.botao_braco_ativo:
             self.mover_servo(servos["braco_esq"], 0)
             self.mover_servo(servos["braco_dir"], 90)
-            time.sleep(0.5)
+            time.sleep(0.3)
+
+            if not self.botao_braco_ativo:
+                break
+
             self.mover_servo(servos["braco_esq"], 90)
             self.mover_servo(servos["braco_dir"], 0)
-            time.sleep(0.5)
+            time.sleep(0.3)
+
+        # desliga PWM ao sair
+        self.desligar_servo(servos["braco_esq"])
+        self.desligar_servo(servos["braco_dir"])
+
 
     def _draw_button_simple(self, text, x, y, w=200, h=60, mouse_pos=None, mouse_click=False):
         rect = pygame.Rect(x, y, w, h)

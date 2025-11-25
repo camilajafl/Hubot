@@ -26,13 +26,13 @@ pins = {
     }
 
 servos = {}
-servos = {}
 for nome, pin in pins.items():
     GPIO.setup(pin, GPIO.OUT)
     pwm = GPIO.PWM(pin, 50)  # 50 Hz
-    pwm.start(7.5)  # posição neutra (evita tremor ao inicializar)
-    pwm.last_angle = 90     # garante atributo inicial usado pelo mover_servo_suave
+    pwm.start(7.5)           # posição neutra
+    pwm.last_angle = 90      # <- ADICIONE ISTO
     servos[nome] = pwm
+
 
 
 WHITE = (255, 255, 255)

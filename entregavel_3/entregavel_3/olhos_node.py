@@ -12,6 +12,28 @@ from std_srvs.srv import Empty
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
 
+
+#pinos SERVOS
+import RPi.GPIO as GPIO
+import time
+import threading
+GPIO.setmode(GPIO.BCM)
+pins = {
+    "orelha_esq": 21,
+    "orelha_dir": 20,
+    "braco_esq": 16,
+    "braco_dir": 12,
+    "extra": 21
+}
+
+servos = {}
+for nome, pin in pins.items():
+    GPIO.setup(pin, GPIO.OUT)
+    pwm = GPIO.PWM(pin, 50)
+    pwm.start(0)
+    servos[nome] = pwm
+
+
 WHITE = (255, 255, 255)
 BLUE = (50, 130, 230)
 DARK_BLUE = (30, 100, 200)
@@ -100,6 +122,11 @@ class OlhosNode(Node):
         self.cadastro_buttons_created = False
         self.botao_voltar_cadastro = False
 
+        #servos
+        self.botao_orelha_ativo = False
+        self.botao_braco_ativo = False
+
+
         # painel de cadastros / edição
         self.encodings_path = os.path.expanduser('~/.ros/encodings.pickle')
         self.painel_buttons_created = False
@@ -183,6 +210,31 @@ class OlhosNode(Node):
     def _draw(self, key):
         self.screen.fill((200,200,200))
         self.screen.blit(self.images[key], (0,0))
+
+    #servos
+    def mover_servo(self,pwm, angulo):
+        duty = 2 + (angulo / 18)
+        pwm.ChangeDutyCycle(duty)
+        time.sleep(0.5)
+        pwm.ChangeDutyCycle(0)
+    
+    def animar_orelhas(self):
+        while self.botao_orelha_ativo:
+            self.mover_servo(servos["orelha_esq"], 0)
+            self.mover_servo(servos["orelha_dir"], 90)
+            time.sleep(0.5)
+            self.mover_servo(servos["orelha_esq"], 90)
+            self.mover_servo(servos["orelha_dir"], 0)
+            time.sleep(0.5)
+
+    def animar_bracos(self):
+        while self.botao_braco_ativo:
+            self.mover_servo(servos["braco_esq"], 0)
+            self.mover_servo(servos["braco_dir"], 90)
+            time.sleep(0.5)
+            self.mover_servo(servos["braco_esq"], 90)
+            self.mover_servo(servos["braco_dir"], 0)
+            time.sleep(0.5)
 
     def _draw_button_simple(self, text, x, y, w=200, h=60, mouse_pos=None, mouse_click=False):
         rect = pygame.Rect(x, y, w, h)
@@ -315,7 +367,7 @@ class OlhosNode(Node):
                     self._draw(self.current_direction)
                     if self.username != "Unknown":
                         button_rect = pygame.Rect(800, 500, 200, 60)
-                        if self._draw_button("Configurações", button_rect, mouse_pos, mouse_click):
+                        if self._draw_button("Configuraçõesss", button_rect, mouse_pos, mouse_click):
                             self.current_page = "pagina_2"
                             self.config_buttons_created = False
                             # ao sair do menu, garante que não pisque mais
@@ -372,10 +424,26 @@ class OlhosNode(Node):
                             elif botao.texto == "Turista":
                                 self.botao_tourista.ativar(); self.botao_recepcionista.desativar(); self.botao_limpadora.desativar()
                                 self.botao_recepcionista_ativo = False; self.botao_limpadora_ativo = False; self.botao_tourista_ativo = True
+                            
+                            #SERVO
                             elif botao.texto == "Orelha":
-                                self.botao_orelha.ativar() if not self.botao_orelha.ativo else self.botao_orelha.desativar()
+                                if self.botao_orelha.ativo:
+                                    self.botao_orelha.desativar()
+                                    botao_orelha_ativo = False
+                                else:
+                                    self.botao_orelha.ativar()
+                                    self.botao_orelha_ativo = True
+                                    threading.Thread(target=self.animar_orelhas, daemon=True).start()
+    
                             elif botao.texto == "Braço":
-                                self.botao_braco.ativar() if not self.botao_braco.ativo else self.botao_braco.desativar()
+                                if self.botao_braco.ativo:
+                                    self.botao_braco.desativar()
+                                    botao_braco_ativo = False
+                                else:
+                                    self.botao_braco.ativar()
+                                    botao_braco_ativo = True
+                                    threading.Thread(target=self.animar_bracos, daemon=True).start()
+
                             elif botao.texto == "Cadastro":
                                 self.current_page = "Cadastro"
                                 # zera estados para não sobrepor telas
@@ -593,6 +661,10 @@ class OlhosNode(Node):
                 # flip
                 pygame.display.flip()
         finally:
+            #SERVO
+            for servo in servos.values():
+                servo.stop()
+                GPIO.cleanup()
             pygame.quit()
             rclpy.shutdown()
 

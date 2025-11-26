@@ -37,9 +37,9 @@ class AIChatNode(Node):
 
         # Base HTTP:
         # RAILWAY:
-        #self.base = "https://hubot-api-lara-production.up.railway.app"
+        self.base = "https://hubot-api-lara-production.up.railway.app"
         # LOCALHOST:
-        self.base = "http://localhost:8000"
+        #self.base = "http://localhost:8000"
 
         # Inicializa STT
         if sr:

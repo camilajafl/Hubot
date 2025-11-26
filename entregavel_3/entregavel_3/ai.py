@@ -26,6 +26,21 @@ class AIChatNode(Node):
     def __init__(self, test_mode: bool):
         super().__init__('ai_chat_node')
         self.test_mode = test_mode
+        
+        # 1o tenta usar o parâmetro ROS(YAML), se não, variável de ambiente, se não erro (vazio)
+        self.declare_parameter(
+            "SECRET_KEY", os.getenv('SECRET_KEY','')
+        )
+
+        # lê a chave secreta 
+        self.secret_key = self.get_parameter("SECRET_KEY").get_parameter_value().string_value
+
+
+        if not self.secret_key:
+            self.get_logger().error(
+                "SECRET_KEY não definido nem como parâmetro ROS nem como variável de ambiente."
+            )
+            raise RuntimeError("SECRET_KEY ausente")
 
         # Token e expiração
         self.token = None
@@ -77,7 +92,7 @@ class AIChatNode(Node):
     def _refresh_token(self):
         resp = self.session.get(
             f"{self.base}/get_access_token",
-            headers={'X-token': os.getenv('SECRET_KEY','')},
+            headers={'X-token': self.secret_key},
             timeout=5.0
         )
         resp.raise_for_status()

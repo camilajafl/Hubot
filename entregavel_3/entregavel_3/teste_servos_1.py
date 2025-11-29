@@ -1,54 +1,58 @@
 import RPi.GPIO as GPIO
 import time
 
+# ==== CONFIGURACAO ====
+pin_braco = 12
+pin_garra = 13
+freq = 50
+
+# Mesmos ganhos do código original
+def pos_braco(pwm, valor):
+    valor = float(valor)
+    commandBraco = 5 + 2.67*valor + (0.444*(valor**2))
+    print("Duty Braco:", commandBraco)
+    pwm.ChangeDutyCycle(commandBraco)
+
+def pos_garra(pwm, valor):
+    commandGarra = (6 * valor) + 12
+    print("Duty Garra:", commandGarra)
+    pwm.ChangeDutyCycle(commandGarra)
+
+# ==== INICIO ====
+
 GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
 
-# Mesmos pinos que você usa
-pins = {
-    "orelha_esq": 21,
-    "orelha_dir": 20,
-    "braco_esq": 16,
-    "braco_dir": 12
-}
+GPIO.setup(pin_braco, GPIO.OUT)
+GPIO.setup(pin_garra, GPIO.OUT)
 
-servos = {}
+pwm_braco = GPIO.PWM(pin_braco, freq)
+pwm_garra = GPIO.PWM(pin_garra, freq)
 
-# Inicializa cada PWM
-for nome, pin in pins.items():
-    GPIO.setup(pin, GPIO.OUT)
-    pwm = GPIO.PWM(pin, 50)  # 50 Hz = servos padrão
-    pwm.start(0)
-    servos[nome] = pwm
-
-def mover_servo(pwm, angulo):
-    """Converte ângulo para duty cycle e move o servo."""
-    duty = 2 + (angulo / 18)
-    pwm.ChangeDutyCycle(duty)
-    time.sleep(0.5)
-    pwm.ChangeDutyCycle(0)
-
+pwm_braco.start(0)
+pwm_garra.start(0)
 
 try:
-    while True:
-        print("Movendo servos para 0°...")
-        for s in servos.values():
-            mover_servo(s, 0)
+    print("\n=== Teste do Servo Braco (varrendo comandos) ===")
+    for v in [ -1.0, -0.5, 0.0, 0.5, 1.0 ]:
+        print("\nBraco -> comando =", v)
+        pos_braco(pwm_braco, v)
         time.sleep(1)
+        pwm_braco.ChangeDutyCycle(0)
+        time.sleep(0.5)
 
-        print("Movendo servos para 90°...")
-        for s in servos.values():
-            mover_servo(s, 90)
+    print("\n=== Teste do Servo Garra (varrendo comandos) ===")
+    for v in [ -1.0, -0.5, 0.0, 0.5, 1.0 ]:
+        print("\nGarra -> comando =", v)
+        pos_garra(pwm_garra, v)
         time.sleep(1)
-
-        print("Movendo servos para 180°...")
-        for s in servos.values():
-            mover_servo(s, 180)
-        time.sleep(1)
+        pwm_garra.ChangeDutyCycle(0)
+        time.sleep(0.5)
 
 except KeyboardInterrupt:
-    print("Encerrando teste...")
+    pass
 
-finally:
-    for s in servos.values():
-        s.stop()
-    GPIO.cleanup()
+print("Encerrando...")
+pwm_braco.stop()
+pwm_garra.stop()
+GPIO.cleanup()

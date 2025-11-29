@@ -11,6 +11,7 @@ from rclpy.qos import ReliabilityPolicy, QoSProfile
 from std_srvs.srv import Empty
 from sensor_msgs.msg import CompressedImage
 from cv_bridge import CvBridge
+import math 
 
 
 #pinos SERVOS
@@ -212,7 +213,8 @@ class OlhosNode(Node):
 
     
     def mover_servo(self, pwm, angulo):
-        duty = 2 + (angulo / 18)
+        angulo_rad = math.radians(angulo)
+        duty = (6*angulo_rad ) +12
         pwm.ChangeDutyCycle(duty)
         time.sleep(1)
 

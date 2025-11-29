@@ -23,11 +23,11 @@ def pos_garra(pwm, valor):
 GPIO.setmode(GPIO.BCM)
 GPIO.setwarnings(False)
 
-GPIO.setup(pin_braco, GPIO.OUT)
-GPIO.setup(pin_garra, GPIO.OUT)
+GPIO.setup(pin_bracoe, GPIO.OUT)
+GPIO.setup(pin_bracod, GPIO.OUT)
 
-pwm_braco = GPIO.PWM(pin_braco, freq)
-pwm_garra = GPIO.PWM(pin_garra, freq)
+pwm_braco = GPIO.PWM(pin_bracoe, freq)
+pwm_garra = GPIO.PWM(pin_bracod, freq)
 
 pwm_braco.start(0)
 pwm_garra.start(0)

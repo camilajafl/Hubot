@@ -2,8 +2,8 @@ import RPi.GPIO as GPIO
 import time
 
 # ==== CONFIGURACAO ====
-pin_braco = 12
-pin_garra = 13
+pin_bracoe = 12
+pin_bracod = 16
 freq = 50
 
 # Mesmos ganhos do código original

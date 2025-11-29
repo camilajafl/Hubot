@@ -214,7 +214,7 @@ class OlhosNode(Node):
     def mover_servo(self, pwm, angulo):
         duty = 2 + (angulo / 18)
         pwm.ChangeDutyCycle(duty)
-        time.sleep(0.3)
+        time.sleep(1)
 
     def desligar_servo(self, pwm):
         pwm.ChangeDutyCycle(0)   # para tremilique
@@ -223,14 +223,14 @@ class OlhosNode(Node):
         while self.botao_orelha_ativo:
             self.mover_servo(servos["orelha_esq"], 0)
             self.mover_servo(servos["orelha_dir"], 90)
-            time.sleep(0.3)
+            time.sleep(1)
 
             if not self.botao_orelha_ativo:
                 break
 
             self.mover_servo(servos["orelha_esq"], 90)
             self.mover_servo(servos["orelha_dir"], 0)
-            time.sleep(0.3)
+            time.sleep(1)
 
         # ao sair do loop → desliga PWM
         self.desligar_servo(servos["orelha_esq"])

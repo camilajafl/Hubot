@@ -351,11 +351,13 @@ class OlhosNode(Node):
                             self.config_buttons_created = False
                             # ao sair do menu, garante que não pisque mais
                             self.blinking = False
-                    botao_conversar_rect = pygame.Rect(800, 420, 200, 60)
-                    if self._draw_button("Conversar", botao_conversar_rect, mouse_pos, mouse_click):
-                        self.get_logger().info("[OLHOSNODE] Botão Conversar clicado no menu. Enviando trigger.")
-                        print("[OLHOSNODE] >>> Trigger enviado para AIChatNode (menu principal)")
-                        self.ai_trigger_pub.publish(String(data="start"))
+
+                    if self.ai_state == "idle":
+                        botao_conversar_rect = pygame.Rect(800, 420, 200, 60)
+                        if self._draw_button("Conversar", botao_conversar_rect, mouse_pos, mouse_click):
+                            self.get_logger().info("[OLHOSNODE] Botão Conversar clicado no menu. Enviando trigger.")
+                            print("[OLHOSNODE] >>> Trigger enviado para AIChatNode (menu principal)")
+                            self.ai_trigger_pub.publish(String(data="start"))
 
                     # piscar APENAS no menu (impede flicker nas páginas de configuração)
                     if not self.blinking:

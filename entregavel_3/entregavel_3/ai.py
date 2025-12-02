@@ -7,8 +7,7 @@ import time
 import requests
 from langserve import RemoteRunnable
 from tempfile import NamedTemporaryFile
-import playsound
-import json
+from std_msgs.msg import String
 
 import threading
 import io
@@ -49,6 +48,7 @@ class AIChatNode(Node):
         self.session  = requests.Session()
 
         self.is_speaking = False
+        self.ai_busy = False
 
         # Base HTTP:
         # RAILWAY:
@@ -76,12 +76,61 @@ class AIChatNode(Node):
             except Exception as e:
                 self.get_logger().warn(f"Não foi possível listar microfones: {e}")
 
+        
+        
+        #subscriber para ativar ia via tópico
+        self.trigger_sub = self.create_subscription(
+            String,
+            'ai_trigger',
+            self.trigger_callback,
+            10
+        )
+
         # Instancia o client da API com token inicial
         self._refresh_token()
 
         # Timer para escutar continuamente
-        if not test_mode:
-            self.create_timer(5.0, self.listen_and_respond)
+        
+
+    def trigger_callback(self, msg: String):
+        """
+        Callback chamado quando alguém publica em /ai_trigger.
+        ETAPA 2: agora vamos REALMENTE chamar a IA.
+        """
+        print(f"[AI] >>> Trigger recebido no tópico /ai_trigger com data='{msg.data}'")
+
+        # Se estiver em modo de teste (teclado), não vamos rodar a IA por trigger
+        if self.test_mode:
+            self.get_logger().info("[AI] Trigger recebido, mas estou em modo TESTE (teclado).")
+            return
+
+        # Se já estiver ocupado ou falando, ignora
+        if self.ai_busy or self.is_speaking:
+            print("[AI] >>> IA ocupada (ai_busy ou is_speaking=True). Ignorando trigger.")
+            return
+
+        # Só aceita alguns comandos como válidos
+        comando = msg.data.strip().lower()
+        if comando not in ("start", "fala", "falar"):
+            print(f"[AI] >>> Comando '{msg.data}' não reconhecido como trigger. Ignorando.")
+            return
+
+        print("[AI] >>> Trigger VÁLIDO! Vou iniciar listen_and_respond() em uma thread.")
+
+        # Rodar em thread para não travar o spin()
+        def worker():
+            try:
+                self.ai_busy = True
+                print("[AI] >>> (worker) Chamando listen_and_respond()...")
+                self.listen_and_respond()
+                print("[AI] >>> (worker) listen_and_respond() terminou.")
+            finally:
+                self.ai_busy = False
+
+        import threading
+        threading.Thread(target=worker, daemon=True).start()
+
+
 
     def _get_valid_token(self):
         now = time.time()
@@ -103,6 +152,7 @@ class AIChatNode(Node):
         
 
     def listen_and_respond(self):
+        print("[AI] >>> Entrou em listen_and_respond() — começando a ouvir o microfone...")
         if self.is_speaking: #ignora microfone 
             return
         

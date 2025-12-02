@@ -152,6 +152,7 @@ class OlhosNode(Node):
         # PUBLISHERS
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
         self.pub_captura = self.create_publisher(String, 'captura_nome', 10)
+        self.ai_trigger_pub = self.create_publisher(String, 'ai_trigger', 10)
 
         # Pygame
         pygame.init()
@@ -350,6 +351,9 @@ class OlhosNode(Node):
                         self.botao_tourista = Botao("Turista", 100, 500, 200, 60)
                         self.botao_voltar = Botao("Voltar", 800, 500, 200, 60)
                         self.botao_cadastro = Botao("Cadastro", 800, 400, 200, 60)
+
+                        self.botao_conversar = Botao("Conversar", 450, 500, 200, 60)
+
                         self.botoes_config = [
                             self.botao_orelha, self.botao_braco, self.botao_recepcionista,
                             self.botao_limpadora, self.botao_tourista, self.botao_voltar, self.botao_cadastro
@@ -383,6 +387,11 @@ class OlhosNode(Node):
                                 self.cadastro_buttons_created = False
                                 self.painel_buttons_created = False
                                 self.blinking = False
+                            elif botao.texto == "Conversar":
+                                self.get_logger().info(f"[OLHOSNODE] Conversar clicado. Enviando trigger para IA.")
+                                print("[OLHOSNODE] >>> Trigger enviado para AIChatNode (independente do usuário)")
+                                self.ai_trigger_pub.publish(String(data="start"))
+
 
                     for botao in self.botoes_config:
                         botao.draw(self.screen)

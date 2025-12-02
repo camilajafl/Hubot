@@ -321,6 +321,12 @@ class OlhosNode(Node):
                             self.config_buttons_created = False
                             # ao sair do menu, garante que não pisque mais
                             self.blinking = False
+                            
+                    botao_conversar_rect = pygame.Rect(800, 420, 200, 60)
+                    if self._draw_button("Conversar", botao_conversar_rect, mouse_pos, mouse_click):
+                        self.get_logger().info("[OLHOSNODE] Botão Conversar clicado no menu. Enviando trigger.")
+                        print("[OLHOSNODE] >>> Trigger enviado para AIChatNode (menu principal)")
+                        self.ai_trigger_pub.publish(String(data="start"))
 
                     # piscar APENAS no menu (impede flicker nas páginas de configuração)
                     if not self.blinking:
@@ -352,11 +358,10 @@ class OlhosNode(Node):
                         self.botao_voltar = Botao("Voltar", 800, 500, 200, 60)
                         self.botao_cadastro = Botao("Cadastro", 800, 400, 200, 60)
 
-                        self.botao_conversar = Botao("Conversar", 450, 500, 200, 60)
 
                         self.botoes_config = [
                             self.botao_orelha, self.botao_braco, self.botao_recepcionista,
-                            self.botao_limpadora, self.botao_tourista, self.botao_voltar, self.botao_cadastro, self.botao_conversar
+                            self.botao_limpadora, self.botao_tourista, self.botao_voltar, self.botao_cadastro
                         ]
                         self.config_buttons_created = True
 
@@ -387,10 +392,7 @@ class OlhosNode(Node):
                                 self.cadastro_buttons_created = False
                                 self.painel_buttons_created = False
                                 self.blinking = False
-                            elif botao.texto == "Conversar":
-                                self.get_logger().info(f"[OLHOSNODE] Conversar clicado. Enviando trigger para IA.")
-                                print("[OLHOSNODE] >>> Trigger enviado para AIChatNode (independente do usuário)")
-                                self.ai_trigger_pub.publish(String(data="start"))
+                            
 
 
                     for botao in self.botoes_config:

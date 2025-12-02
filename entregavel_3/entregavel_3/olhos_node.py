@@ -140,6 +140,8 @@ class OlhosNode(Node):
         self.botao_limpadora_ativo = False
         self.botao_tourista_ativo = False
 
+        self.ai_state = "idle"  # estado inicial da IA
+
         # SUBSCRIBERS
         self.sub_user = self.create_subscription(String, 'recognized_user', self.cb_user, 10)
         self.sub_face_center = self.create_subscription(
@@ -148,6 +150,14 @@ class OlhosNode(Node):
             self.cb_face_center,
             QoSProfile(depth=10, reliability=ReliabilityPolicy.BEST_EFFORT)
         )
+        
+        self.ai_status_sub = self.create_subscription(
+            String,
+            'ai_status',
+            self.ai_status_callback,
+            10
+        )
+
 
         # PUBLISHERS
         self.cmd_vel_pub = self.create_publisher(Twist, 'cmd_vel', 10)
@@ -220,6 +230,11 @@ class OlhosNode(Node):
         else:
             self.twist.angular.z = 0.0
         self.cmd_vel_pub.publish(self.twist)
+
+    def ai_status_callback(self, msg: String):
+        self.ai_state = msg.data
+        self.get_logger().info(f"[OLHOSNODE] IA status = {self.ai_state}")
+
 
     def update_image(self):
         self.current_image = self.current_direction
@@ -314,6 +329,21 @@ class OlhosNode(Node):
                 if self.current_page == "menu":
                     # desenha olho + botão de configurações
                     self._draw(self.current_direction)
+
+                    if self.ai_state == "idle":
+                        status_msg = "IA: Parada"
+                    elif self.ai_state == "listening":
+                        status_msg = "IA: Ouvindo..."
+                    elif self.ai_state == "thinking":
+                        status_msg = "IA: Pensando..."
+                    elif self.ai_state == "speaking":
+                        status_msg = "IA: Falando..."
+                    else:
+                        status_msg = f"IA: {self.ai_state}"
+
+                    status_surface = self.font_small.render(status_msg, True, BLACK)
+                    self.screen.blit(status_surface, (20, 20))
+
                     if self.username != "Unknown":
                         button_rect = pygame.Rect(800, 500, 200, 60)
                         if self._draw_button("Configurações", button_rect, mouse_pos, mouse_click):

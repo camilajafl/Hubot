@@ -124,11 +124,12 @@ class AIChatNode(Node):
         def worker():
             try:
                 self.ai_busy = True
-                print("[AI] >>> (worker) Chamando listen_and_respond()...")
-                self.listen_and_respond()
-                print("[AI] >>> (worker) listen_and_respond() terminou.")
+                print("[AI] >>> (worker) Iniciando conversa_loop()...")
+                self.conversa_loop(max_turns=3)
+                print("[AI] >>> (worker) conversa_loop() terminou.")
             finally:
                 self.ai_busy = False
+
 
         import threading
         threading.Thread(target=worker, daemon=True).start()
@@ -166,19 +167,36 @@ class AIChatNode(Node):
         self.token_expiry = time.time() + expires_in - 5
         
 
-    def listen_and_respond(self):
+    def listen_and_respond(self) -> bool:
+        """
+        Executa UM turno de interação:
+        - Ouve o usuário
+        - Faz STT
+        - Chama a IA
+        Retorna:
+            True  -> sessão pode continuar (ex.: ouviu algo e respondeu)
+            False -> sessão deve encerrar (ex.: erro, silêncio, etc.)
+        """
         self._publish_status("listening")
-
         print("[AI] >>> Entrou em listen_and_respond() — começando a ouvir o microfone...")
-        if self.is_speaking: #ignora microfone 
-            return
+
+        # Se já estiver falando, não faz sentido ouvir de novo
+        if self.is_speaking:
+            self.get_logger().info("Ainda estou falando, não vou ouvir agora.")
+            return False
         
         mic_index = int(os.getenv('MIC_DEVICE_INDEX', '-1'))
         mic_args = {'device_index': mic_index} if mic_index >= 0 else {}
         with sr.Microphone(**mic_args) as mic:
             self.recognizer.adjust_for_ambient_noise(mic, duration=0.5)
             self.get_logger().info('Ouvindo… fale algo')
-            audio = self.recognizer.listen(mic, phrase_time_limit=5)
+            try:
+                audio = self.recognizer.listen(mic, phrase_time_limit=5)
+            except Exception as e:
+                self.get_logger().warn(f"Falha ao ouvir microfone: {e}")
+                self._publish_status("idle")
+                return False
+
         try:
             # Converte áudio para WAV bytes
             wav_data = audio.get_wav_data()
@@ -191,7 +209,7 @@ class AIChatNode(Node):
             audio_file = io.BytesIO(wav_data)
             audio_file.name = 'audio.wav'
 
-            # Monta payload multipart usando campo 'payload' para corresponder ao endpoint
+            # Monta payload multipart
             files = {'payload': (audio_file.name, audio_file, 'audio/wav')}
 
             # 2) Chama o endpoint /stt/ com token recém obtido
@@ -202,20 +220,55 @@ class AIChatNode(Node):
                 timeout=10.0
             )
             resp.raise_for_status()
-            query = resp.json().get('text', '')
+            query = resp.json().get('text', '').strip()
             self.get_logger().info(f"Você disse: {query}")
-            self._publish_status("thinking")
 
+            if not query:
+                self.get_logger().info("STT retornou vazio (silêncio ou ruído). Encerrando sessão.")
+                self._publish_status("idle")
+                return False
+
+            # Terminou STT com sucesso -> pensando
+            self._publish_status("thinking")
 
         except Exception as e:
             self.get_logger().warn(f'STT falhou: {e}')
             self._publish_status("idle")
-            return
+            return False
 
-
-        # Continua o fluxo normal
+        # Continua o fluxo normal (chama IA e TTS)
         self._call_ai(query)
+        # Aqui NÃO voltamos para idle ainda: isso é feito pela thread de TTS
+        return True
+
     
+    def conversa_loop(self, max_turns: int = 3):
+        """
+        Loop de conversa com vários turnos.
+        - Chama listen_and_respond() até max_turns
+        - Espera terminar de falar antes de ouvir de novo
+        - Interrompe se listen_and_respond() retornar False
+        """
+        self.get_logger().info(f"[AI] Iniciando sessão de conversa com até {max_turns} turnos.")
+        turns = 0
+
+        while turns < max_turns:
+            # 1 turno: ouvir -> pensar -> iniciar fala
+            continuar = self.listen_and_respond()
+
+            if not continuar:
+                self.get_logger().info(f"[AI] Encerrando sessão de conversa (listen_and_respond retornou False no turno {turns+1}).")
+                break
+
+            turns += 1
+            self.get_logger().info(f"[AI] Turno {turns} concluído, aguardando término da fala para novo turno...")
+
+            # Espera terminar de falar antes de ouvir de novo
+            while self.is_speaking:
+                time.sleep(0.1)
+
+        self.get_logger().info(f"[AI] Sessão de conversa finalizada após {turns} turnos.")
+
     def tocar_audio_em_thread(self, wav_bytes):
         try:
             self.is_speaking = True

@@ -89,7 +89,7 @@ class AIChatNode(Node):
         # Instancia o client da API com token inicial
         self._refresh_token()
 
-        # Timer para escutar continuamente
+        self._publish_status("idle")
         
 
     def trigger_callback(self, msg: String):
@@ -130,6 +130,18 @@ class AIChatNode(Node):
         import threading
         threading.Thread(target=worker, daemon=True).start()
 
+    def _publish_status(self, status: str):
+        """
+        Publica o estado da IA em /ai_status.
+        Possíveis valores: 'idle', 'listening', 'thinking', 'speaking'
+        """
+        try:
+            msg = String()
+            msg.data = status
+            self.ai_status_pub.publish(msg)
+            print(f"[AI-STATUS] {status}")
+        except Exception as e:
+            self.get_logger().warn(f"Falha ao publicar status da IA: {e}")
 
 
     def _get_valid_token(self):
@@ -152,6 +164,8 @@ class AIChatNode(Node):
         
 
     def listen_and_respond(self):
+        self._publish_status("listening")
+
         print("[AI] >>> Entrou em listen_and_respond() — começando a ouvir o microfone...")
         if self.is_speaking: #ignora microfone 
             return
@@ -187,10 +201,14 @@ class AIChatNode(Node):
             resp.raise_for_status()
             query = resp.json().get('text', '')
             self.get_logger().info(f"Você disse: {query}")
+            self._publish_status("thinking")
+
 
         except Exception as e:
             self.get_logger().warn(f'STT falhou: {e}')
+            self._publish_status("idle")
             return
+
 
         # Continua o fluxo normal
         self._call_ai(query)
@@ -198,6 +216,9 @@ class AIChatNode(Node):
     def tocar_audio_em_thread(self, wav_bytes):
         try:
             self.is_speaking = True
+
+            #status
+            self._publish_status("speaking")
 
             start_decode = time.time()
             with io.BytesIO(wav_bytes) as audio_stream:
@@ -221,6 +242,7 @@ class AIChatNode(Node):
             print(f"[TTS-thread] Tempo TOTAL na thread: {total:.2f} segundos")
         finally:
             self.is_speaking = False
+            self._publish_status("idle")
 
 
     
@@ -252,26 +274,34 @@ class AIChatNode(Node):
         self.chat_history.append({"author": "ai", "content": collected})
 
         # TTS ---------------------------------------------------------------------
-        # TTS ---------------------------------------------------------------------
         start_tts_total = time.time()
 
         # Token novo só para o TTS
         self._refresh_token()
         token_tts = self.token
 
-        start_req = time.time()
-        resp = self.session.post(
-            f"{self.base}/tts/",
-            json={"text": collected},
-            headers={"temp-token": token_tts},
-            timeout=30.0
-        )
-        resp.raise_for_status()
-        end_req = time.time()
-        print(f"[TTS] Requisição à API: {end_req - start_req:.2f} segundos")
+        try:
+            start_req = time.time()
+            resp = self.session.post(
+                f"{self.base}/tts/",
+                json={"text": collected},
+                headers={"temp-token": token_tts},
+                timeout=30.0
+            )
+            resp.raise_for_status()
+            end_req = time.time()
+            print(f"[TTS] Requisição à API: {end_req - start_req:.2f} segundos")
+        except Exception as e:
+            self.get_logger().error(f"Erro no TTS: {e}")
+            self._publish_status("idle")
+            return
+
+        # Antes de tocar o áudio, marcamos que está FALANDO
+        self._publish_status("speaking")
 
         # Toca o áudio em uma thread separada
         threading.Thread(target=self.tocar_audio_em_thread, args=(resp.content,)).start()
+
 
         # Marca tempo total até delegar para thread
         end_tts_total = time.time()

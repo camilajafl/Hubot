@@ -86,6 +86,9 @@ class AIChatNode(Node):
             10
         )
 
+        # Cria um publisher para o tópico /ai_status
+        self.ai_status_pub = self.create_publisher(String, 'ai_status', 10)
+
         # Instancia o client da API com token inicial
         self._refresh_token()
 

@@ -115,9 +115,14 @@ class AIChatNode(Node):
 
         # Só aceita alguns comandos como válidos
         comando = msg.data.strip().lower()
+        # 1) STOP tem prioridade absoluta: ignora busy/speaking/test_mode
         if comando == "stop":
+            self.get_logger().info("[AI] Comando STOP recebido. Encerrando conversa imediatamente.")
+            print("[AI] >>> STOP recebido. Marcando stop_conversation = True.")
             self.stop_conversation = True
-            print("[AI] >>> Comando STOP recebido. Encerrando conversa.")
+            # força status visual para idle (pro OlhosNode voltar a mostrar 'Conversar')
+            self._publish_status("idle")
+            # não dispara novo worker
             return
 
         if comando not in ("start", "fala", "falar"):
@@ -135,6 +140,7 @@ class AIChatNode(Node):
                 print("[AI] >>> (worker) conversa_loop() terminou.")
             finally:
                 self.ai_busy = False
+                self._publish_status("idle")
 
 
         import threading
@@ -249,6 +255,7 @@ class AIChatNode(Node):
 
     
     def conversa_loop(self, max_turns: int = 3):
+        self.stop_conversation = False
         """
         Loop de conversa com vários turnos.
         - Chama listen_and_respond() até max_turns
@@ -261,7 +268,7 @@ class AIChatNode(Node):
         while turns < max_turns:
             if self.stop_conversation:
                 self.get_logger().info(f"[AI] Encerrando sessão de conversa (stop_conversation=True no turno {turns+1}).")
-                self._publish_status("idle")
+                
                 break
 
             # 1 turno: ouvir -> pensar -> iniciar fala

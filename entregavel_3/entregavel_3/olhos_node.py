@@ -356,7 +356,7 @@ class OlhosNode(Node):
 
                         self.botoes_config = [
                             self.botao_orelha, self.botao_braco, self.botao_recepcionista,
-                            self.botao_limpadora, self.botao_tourista, self.botao_voltar, self.botao_cadastro
+                            self.botao_limpadora, self.botao_tourista, self.botao_voltar, self.botao_cadastro, self.botao_conversar
                         ]
                         self.config_buttons_created = True
 

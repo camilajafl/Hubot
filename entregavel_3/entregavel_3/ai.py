@@ -49,6 +49,7 @@ class AIChatNode(Node):
 
         self.is_speaking = False
         self.ai_busy = False
+        self.stop_conversation = False
 
         # Base HTTP:
         # RAILWAY:
@@ -114,6 +115,11 @@ class AIChatNode(Node):
 
         # Só aceita alguns comandos como válidos
         comando = msg.data.strip().lower()
+        if comando == "stop":
+            self.stop_conversation = True
+            print("[AI] >>> Comando STOP recebido. Encerrando conversa.")
+            return
+
         if comando not in ("start", "fala", "falar"):
             print(f"[AI] >>> Comando '{msg.data}' não reconhecido como trigger. Ignorando.")
             return
@@ -253,6 +259,11 @@ class AIChatNode(Node):
         turns = 0
 
         while turns < max_turns:
+            if self.stop_conversation:
+                self.get_logger().info(f"[AI] Encerrando sessão de conversa (stop_conversation=True no turno {turns+1}).")
+                self._publish_status("idle")
+                break
+
             # 1 turno: ouvir -> pensar -> iniciar fala
             continuar = self.listen_and_respond()
 

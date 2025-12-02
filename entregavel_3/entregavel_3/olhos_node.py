@@ -359,6 +359,15 @@ class OlhosNode(Node):
                             print("[OLHOSNODE] >>> Trigger enviado para AIChatNode (menu principal)")
                             self.ai_trigger_pub.publish(String(data="start"))
 
+                    # IA ocupada → mostra PARAR CONVERSA
+                    else:
+                        botao_parar_rect = pygame.Rect(800, 420, 200, 60)
+                        if self._draw_button("Parar", botao_parar_rect, mouse_pos, mouse_click):
+                            print("[OLHOSNODE] >>> Enviando comando para parar conversa")
+                            self.ai_trigger_pub.publish(String(data="stop"))
+                        
+
+
                     # piscar APENAS no menu (impede flicker nas páginas de configuração)
                     if not self.blinking:
                         now = pygame.time.get_ticks()

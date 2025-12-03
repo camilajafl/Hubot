@@ -51,6 +51,9 @@ class AIChatNode(Node):
         self.ai_busy = False
         self.stop_conversation = False
 
+        #variavelpara guardar audio em reproducao
+        self.current_play_obj = None
+
         # Base HTTP:
         # RAILWAY:
         self.base = "https://hubot-api-lara-production.up.railway.app"
@@ -99,39 +102,46 @@ class AIChatNode(Node):
     def trigger_callback(self, msg: String):
         """
         Callback chamado quando alguém publica em /ai_trigger.
-        ETAPA 2: agora vamos REALMENTE chamar a IA.
         """
-        print(f"[AI] >>> Trigger recebido no tópico /ai_trigger com data='{msg.data}'")
-
-        # Se estiver em modo de teste (teclado), não vamos rodar a IA por trigger
-        if self.test_mode:
-            self.get_logger().info("[AI] Trigger recebido, mas estou em modo TESTE (teclado).")
-            return
-
-        # Se já estiver ocupado ou falando, ignora
-        if self.ai_busy or self.is_speaking:
-            print("[AI] >>> IA ocupada (ai_busy ou is_speaking=True). Ignorando trigger.")
-            return
-
-        # Só aceita alguns comandos como válidos
         comando = msg.data.strip().lower()
-        # 1) STOP tem prioridade absoluta: ignora busy/speaking/test_mode
+        print(f"[AI] >>> Trigger recebido no tópico /ai_trigger com data='{comando}'")
+
+        # 1) STOP tem prioridade absoluta: pode ser chamado a qualquer momento
         if comando == "stop":
             self.get_logger().info("[AI] Comando STOP recebido. Encerrando conversa imediatamente.")
             print("[AI] >>> STOP recebido. Marcando stop_conversation = True.")
             self.stop_conversation = True
-            # força status visual para idle (pro OlhosNode voltar a mostrar 'Conversar')
+
+            # se estiver tocando áudio, para na hora
+            if self.current_play_obj is not None:
+                try:
+                    self.current_play_obj.stop()
+                    print("[AI] >>> Áudio TTS interrompido via STOP.")
+                except Exception as e:
+                    self.get_logger().warn(f"Falha ao tentar parar áudio: {e}")
+
+            # força status visual para idle (OlhosNode volta a mostrar 'Conversar')
             self._publish_status("idle")
-            # não dispara novo worker
+            return
+
+        # 2) Daqui pra baixo são comandos de INÍCIO de conversa
+
+        # Se estiver em modo de teste, não roda automático
+        if self.test_mode:
+            self.get_logger().info("[AI] Trigger recebido, mas estou em modo TESTE (teclado).")
+            return
+
+        # Se já estiver ocupado ou falando, ignora (para START, FALAR, etc.)
+        if self.ai_busy or self.is_speaking:
+            print("[AI] >>> IA ocupada (ai_busy ou is_speaking=True). Ignorando trigger.")
             return
 
         if comando not in ("start", "fala", "falar"):
             print(f"[AI] >>> Comando '{msg.data}' não reconhecido como trigger. Ignorando.")
             return
 
-        print("[AI] >>> Trigger VÁLIDO! Vou iniciar listen_and_respond() em uma thread.")
+        print("[AI] >>> Trigger VÁLIDO! Vou iniciar conversa_loop() em uma thread.")
 
-        # Rodar em thread para não travar o spin()
         def worker():
             try:
                 self.ai_busy = True
@@ -142,9 +152,8 @@ class AIChatNode(Node):
                 self.ai_busy = False
                 self._publish_status("idle")
 
-
-        import threading
         threading.Thread(target=worker, daemon=True).start()
+
 
     def _publish_status(self, status: str):
         """
@@ -290,8 +299,6 @@ class AIChatNode(Node):
     def tocar_audio_em_thread(self, wav_bytes):
         try:
             self.is_speaking = True
-
-            #status
             self._publish_status("speaking")
 
             start_decode = time.time()
@@ -306,17 +313,30 @@ class AIChatNode(Node):
             end_decode = time.time()
             print(f"[TTS-thread] Decodificação WAV: {end_decode - start_decode:.2f} segundos")
 
+            # começa a tocar e guarda o objeto para poder parar de fora
             start_play = time.time()
             play_obj = wave_obj.play()
-            play_obj.wait_done()
+            self.current_play_obj = play_obj
+
+            # em vez de play_obj.wait_done(), checamos periodicamente se recebeu STOP
+            while play_obj.is_playing():
+                if self.stop_conversation:
+                    print("[TTS-thread] STOP detectado durante reprodução. Parando áudio.")
+                    play_obj.stop()
+                    break
+                time.sleep(0.05)
+
             end_play = time.time()
-            print(f"[TTS-thread] Reprodução do áudio: {end_play - start_play:.2f} segundos")
+            print(f"[TTS-thread] Reprodução do áudio (até parada/fim): {end_play - start_play:.2f} segundos")
 
             total = end_play - start_decode
             print(f"[TTS-thread] Tempo TOTAL na thread: {total:.2f} segundos")
         finally:
+            self.current_play_obj = None
             self.is_speaking = False
+            # deixa o status em idle; o worker da conversa também vai setar idle ao terminar
             self._publish_status("idle")
+
 
 
     
